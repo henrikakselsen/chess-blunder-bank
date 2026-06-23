@@ -38,7 +38,7 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
       <h1 className="text-3xl font-bold">Mate training</h1>
       <p className="max-w-prose text-base-content/80">
         Positions where the engine showed mate in 1 or 2 for you, but you played something else.
-        Drag the correct move on the board.
+        Drag the correct move on the board. Failed positions return in a repetition round.
       </p>
       <div className="flex flex-wrap gap-2">
         <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>
@@ -58,7 +58,7 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
           Import.
         </p>
       ) : (
-        <MatePuzzle key={idSignature} queue={filtered} />
+        <MatePuzzle key={idSignature} sourceQueue={filtered} />
       )}
     </section>
   )
@@ -84,17 +84,70 @@ function FilterButton({
   )
 }
 
-function MatePuzzle({ queue: sourceQueue }: { queue: MissedMateRow[] }) {
-  const queue = useMemo(() => {
-    const list = [...sourceQueue]
-    const ids = list.map((m) => m.id!).filter((n): n is number => n != null)
-    shuffleInPlace(ids)
-    const byId = new Map(list.map((m) => [m.id!, m]))
-    return ids.map((id) => byId.get(id)!).filter(Boolean)
+function MatePuzzle({ sourceQueue }: { sourceQueue: MissedMateRow[] }) {
+  const byId = useMemo(() => {
+    const map = new Map<number, MissedMateRow>()
+    for (const row of sourceQueue) {
+      if (row.id != null) map.set(row.id, row)
+    }
+    return map
   }, [sourceQueue])
 
+  const mainQueue = useMemo(() => shuffleQueue(sourceQueue), [sourceQueue])
+
+  const [activeQueue, setActiveQueue] = useState(mainQueue)
+  const [round, setRound] = useState<'main' | 'repeat'>('main')
+  const [repeatRound, setRepeatRound] = useState(0)
+  const [pendingRepeatIds, setPendingRepeatIds] = useState<Set<number>>(() => new Set())
   const [idx, setIdx] = useState(0)
-  const current = queue[idx] ?? null
+  const [sessionComplete, setSessionComplete] = useState(false)
+
+  const current = activeQueue[idx] ?? null
+
+  const enqueueRepeat = useCallback((id: number) => {
+    setPendingRepeatIds((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }, [])
+
+  const startRepeatRound = useCallback(() => {
+    const repeatItems = [...pendingRepeatIds]
+      .map((id) => byId.get(id))
+      .filter((row): row is MissedMateRow => row != null)
+    shuffleInPlace(repeatItems)
+    setActiveQueue(repeatItems)
+    setPendingRepeatIds(new Set())
+    setRound('repeat')
+    setRepeatRound((n) => n + 1)
+    setIdx(0)
+  }, [byId, pendingRepeatIds])
+
+  const goNext = useCallback(() => {
+    if (idx < activeQueue.length - 1) {
+      setIdx((i) => i + 1)
+      return
+    }
+    if (pendingRepeatIds.size > 0) {
+      startRepeatRound()
+      return
+    }
+    setSessionComplete(true)
+  }, [activeQueue.length, idx, pendingRepeatIds.size, startRepeatRound])
+
+  const goPrev = useCallback(() => {
+    setIdx((i) => Math.max(0, i - 1))
+  }, [])
+
+  if (sessionComplete) {
+    return (
+      <p className="text-success font-medium">
+        All positions solved this session
+        {repeatRound > 0 ? ` (including ${repeatRound} repetition round${repeatRound > 1 ? 's' : ''})` : ''}.
+      </p>
+    )
+  }
 
   if (!current) return null
 
@@ -103,9 +156,15 @@ function MatePuzzle({ queue: sourceQueue }: { queue: MissedMateRow[] }) {
       key={current.id}
       current={current}
       idx={idx}
-      queueLength={queue.length}
-      onPrev={() => setIdx((i) => Math.max(0, i - 1))}
-      onNext={() => setIdx((i) => Math.min(queue.length - 1, i + 1))}
+      queueLength={activeQueue.length}
+      round={round}
+      repeatRound={repeatRound}
+      queuedCount={pendingRepeatIds.size}
+      onWrongMatingMove={() => {
+        if (current.id != null) enqueueRepeat(current.id)
+      }}
+      onPrev={goPrev}
+      onNext={goNext}
     />
   )
 }
@@ -114,12 +173,20 @@ function MatePuzzleBoard({
   current,
   idx,
   queueLength,
+  round,
+  repeatRound,
+  queuedCount,
+  onWrongMatingMove,
   onPrev,
   onNext,
 }: {
   current: MissedMateRow
   idx: number
   queueLength: number
+  round: 'main' | 'repeat'
+  repeatRound: number
+  queuedCount: number
+  onWrongMatingMove: () => void
   onPrev: () => void
   onNext: () => void
 }) {
@@ -139,6 +206,14 @@ function MatePuzzleBoard({
     setShowHint(false)
   }, [current.fenBefore])
 
+  const failMatingMove = useCallback(
+    (message: string) => {
+      onWrongMatingMove()
+      setFeedback(`${message} Queued for repetition.`)
+    },
+    [onWrongMatingMove],
+  )
+
   const toggleReviewed = useCallback(async () => {
     if (current.id == null) return
     const next = !current.reviewed
@@ -150,7 +225,7 @@ function MatePuzzleBoard({
 
   const onPieceDrop = useCallback(
     ({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean => {
-      if (!current || !targetSquare || phase !== 'play') return false
+      if (!targetSquare || phase !== 'play') return false
 
       const chess = new Chess(boardFen)
       const myPiece = current.myColor === 'white' ? 'w' : 'b'
@@ -177,7 +252,7 @@ function MatePuzzleBoard({
           chess.isCheckmate() ||
           current.solutionLines.some((line) => line[0] === move.san)
         if (!ok) {
-          setFeedback('Not the mating move — try again.')
+          failMatingMove('Not the mating move — try again.')
           return false
         }
         setBoardFen(chess.fen())
@@ -189,7 +264,7 @@ function MatePuzzleBoard({
       if (mate2Step === 0) {
         const matchingLines = current.solutionLines.filter((l) => l[0] === move.san)
         if (matchingLines.length === 0) {
-          setFeedback('Not the right first move — try again.')
+          failMatingMove('Not the right first move — try again.')
           return false
         }
         const line = matchingLines[0]!
@@ -210,7 +285,7 @@ function MatePuzzleBoard({
       const expectedMate = activeLine?.[2]
       const ok = chess.isCheckmate() || move.san === expectedMate
       if (!ok) {
-        setFeedback('Not mate — try again from the start.')
+        failMatingMove('Not mate — try again from the start.')
         resetPosition()
         return false
       }
@@ -219,11 +294,15 @@ function MatePuzzleBoard({
       setFeedback('Correct — checkmate!')
       return true
     },
-    [activeLine, boardFen, current, mate2Step, phase, resetPosition],
+    [activeLine, boardFen, current, failMatingMove, mate2Step, phase, resetPosition],
   )
 
   const hintMove = current.solutionLines[0]?.[mate2Step]
   const sideToMove = sideToMoveFromFen(boardFen)
+  const roundLabel =
+    round === 'main'
+      ? 'Round 1'
+      : `Repetition round ${repeatRound} (${queueLength} position${queueLength === 1 ? '' : 's'})`
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
@@ -247,6 +326,7 @@ function MatePuzzleBoard({
         </div>
       </div>
       <div className="flex flex-col gap-4">
+        <p className="text-base-content/80 text-sm font-medium">{roundLabel}</p>
         <p>
           <strong>To move:</strong> {sideToMoveLabel(sideToMove)}
         </p>
@@ -297,12 +377,7 @@ function MatePuzzleBoard({
           >
             Previous
           </button>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={onNext}
-            disabled={idx >= queueLength - 1}
-          >
+          <button type="button" className="btn btn-outline btn-sm" onClick={onNext}>
             Next
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={() => void toggleReviewed()}>
@@ -326,10 +401,19 @@ function MatePuzzleBoard({
         </div>
         <p className="text-base-content/70 text-sm">
           {idx + 1} / {queueLength}
+          {queuedCount > 0 ? ` · ${queuedCount} queued for repeat` : ''}
         </p>
       </div>
     </div>
   )
+}
+
+function shuffleQueue(rows: MissedMateRow[]): MissedMateRow[] {
+  const list = [...rows]
+  const ids = list.map((m) => m.id!).filter((n): n is number => n != null)
+  shuffleInPlace(ids)
+  const byId = new Map(list.map((m) => [m.id!, m]))
+  return ids.map((id) => byId.get(id)!).filter(Boolean)
 }
 
 function boardSize() {
