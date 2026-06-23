@@ -5,6 +5,24 @@ export interface ImportedGameRow {
   pgn?: string
 }
 
+export type ImportMode = 'append' | 'update_duplicates' | 'replace_all'
+
+export interface ImportBatchRow {
+  id?: number
+  importedAt: number
+  username: string
+  mode: ImportMode
+  gamesSeen: number
+  gamesImported: number
+  gamesUpdated: number
+  gamesSkippedDuplicate: number
+  mistakesAdded: number
+  matesAdded: number
+  gamesFailed: number
+  maxGames: number
+  thresholdPawns: number
+}
+
 export interface MistakeRow {
   id?: number
   gameId: string

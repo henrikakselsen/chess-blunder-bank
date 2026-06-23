@@ -2,6 +2,8 @@ const KEY = 'chess-blunder-bank-import-v1'
 const LEGACY_SETTINGS_KEY = 'chess-blunder-bank-settings-v1'
 const LEGACY_SETTINGS_KEY_OLD = 'chess-learning-settings-v1'
 
+import type { ImportMode } from '../db/schema'
+
 export interface ImportPreferences {
   lichessUsername: string
   evalThresholdPawns: number
@@ -11,6 +13,7 @@ export interface ImportPreferences {
   analysed: boolean
   clocks: boolean
   opening: boolean
+  lastImportMode: ImportMode
 }
 
 export const defaultImportPreferences: ImportPreferences = {
@@ -22,6 +25,14 @@ export const defaultImportPreferences: ImportPreferences = {
   analysed: true,
   clocks: false,
   opening: false,
+  lastImportMode: 'append',
+}
+
+function parseImportMode(value: unknown): ImportMode {
+  if (value === 'append' || value === 'update_duplicates' || value === 'replace_all') {
+    return value
+  }
+  return defaultImportPreferences.lastImportMode
 }
 
 function parsePrefs(raw: string): ImportPreferences | null {
@@ -48,6 +59,7 @@ function parsePrefs(raw: string): ImportPreferences | null {
         typeof p.clocks === 'boolean' ? p.clocks : defaultImportPreferences.clocks,
       opening:
         typeof p.opening === 'boolean' ? p.opening : defaultImportPreferences.opening,
+      lastImportMode: parseImportMode(p.lastImportMode),
     }
   } catch {
     return null
@@ -70,6 +82,7 @@ function migrateLegacySettings(): ImportPreferences | null {
         typeof p.evalThresholdPawns === 'number' && Number.isFinite(p.evalThresholdPawns)
           ? p.evalThresholdPawns
           : defaultImportPreferences.evalThresholdPawns,
+      lastImportMode: defaultImportPreferences.lastImportMode,
     }
   }
   return null

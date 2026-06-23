@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type {
+  ImportBatchRow,
   ImportedGameRow,
   MissedMateRow,
   MistakeRow,
@@ -14,6 +15,7 @@ export class BlunderBankDB extends Dexie {
   tags!: EntityTable<TagRow, 'id'>
   mistakeTags!: EntityTable<MistakeTagRow, 'id'>
   missedMates!: EntityTable<MissedMateRow, 'id'>
+  importBatches!: EntityTable<ImportBatchRow, 'id'>
 
   constructor() {
     super('chess-learning-v1')
@@ -29,6 +31,14 @@ export class BlunderBankDB extends Dexie {
       tags: '++id, &name',
       mistakeTags: '++id, [mistakeId+tagId], mistakeId, tagId',
       missedMates: '++id, gameId, mateIn, reviewed, createdAt',
+    })
+    this.version(3).stores({
+      importedGames: 'gameId, importedAt',
+      mistakes: '++id, gameId, reviewed, createdAt',
+      tags: '++id, &name',
+      mistakeTags: '++id, [mistakeId+tagId], mistakeId, tagId',
+      missedMates: '++id, gameId, mateIn, reviewed, createdAt',
+      importBatches: '++id, importedAt',
     })
   }
 }

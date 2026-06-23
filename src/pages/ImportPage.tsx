@@ -1,4 +1,7 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { db } from '../db'
+import type { ImportBatchRow, ImportMode } from '../db/schema'
 import { importPgnText, type ImportProgress } from '../lib/importPgn'
 import { fetchPgnFromUrl } from '../lib/fetchPgn'
 import {
@@ -10,35 +13,65 @@ import {
 import { buildLichessGamesUrl } from '../lib/lichessUrl'
 import { captureException } from '../lib/errorLog'
 
+const IMPORT_MODE_OPTIONS: { value: ImportMode; label: string; hint: string }[] = [
+  {
+    value: 'append',
+    label: 'Add to existing',
+    hint: 'Skip games already imported',
+  },
+  {
+    value: 'update_duplicates',
+    label: 'Update duplicates',
+    hint: 'Re-scan games that appear in this import',
+  },
+  {
+    value: 'replace_all',
+    label: 'Replace all',
+    hint: 'Delete all stored games and findings, then import',
+  },
+]
+
 export function ImportPage() {
   const [prefs, setPrefs] = useState<ImportPreferences>(() => loadImportPreferences())
   const [busy, setBusy] = useState(false)
   const [log, setLog] = useState<string | null>(null)
   const [progress, setProgress] = useState<ImportUiProgress | null>(null)
 
+  const importHistory = useLiveQuery(
+    () => db.importBatches.orderBy('importedAt').reverse().limit(20).toArray(),
+    [],
+  )
+
   function updatePrefs(patch: Partial<ImportPreferences>) {
     setPrefs((p) => ({ ...p, ...patch }))
   }
 
-  async function runImportFromText(
-    pgn: string,
-    sourceLabel: string,
-    username: string,
-    threshold: number,
-  ) {
+  function importMeta(username: string) {
+    return {
+      username,
+      maxGames: prefs.max,
+      thresholdPawns: prefs.evalThresholdPawns,
+    }
+  }
+
+  async function runImportFromText(pgn: string, sourceLabel: string, username: string) {
     setBusy(true)
     setLog(null)
     setProgress({ phase: 'parse', current: 0, total: 1 })
     try {
-      const r = await importPgnText(pgn, username, threshold, {
+      const r = await importPgnText(pgn, username, prefs.evalThresholdPawns, {
+        mode: prefs.lastImportMode,
+        importMeta: importMeta(username),
         onProgress: setProgress,
       })
       const lines = [
+        `Mode: ${importModeLabel(prefs.lastImportMode)}`,
         `Games seen: ${r.gamesSeen}`,
         `Skipped (non-standard variant): ${r.gamesSkippedVariant}`,
         `Skipped (not your game): ${r.gamesSkippedNotYou}`,
-        `Skipped (already imported): ${r.gamesSkippedAlreadyImported}`,
+        `Skipped (already imported): ${r.gamesSkippedDuplicate}`,
         `New games imported: ${r.gamesImported}`,
+        `Games updated: ${r.gamesUpdated}`,
         `Blunders found: ${r.mistakesAdded}`,
         `Missed mates found: ${r.matesAdded}`,
       ]
@@ -54,6 +87,12 @@ export function ImportPage() {
     }
   }
 
+  function confirmReplaceAll(): boolean {
+    return window.confirm(
+      'This will delete all stored games, blunders, and missed mates before importing. Tags are kept. Continue?',
+    )
+  }
+
   async function handleFetchAndImport() {
     const username = prefs.lichessUsername.trim()
     if (!username) {
@@ -62,6 +101,9 @@ export function ImportPage() {
     }
     if (!prefs.evals || !prefs.analysed) {
       setLog('Enable both evals and analysed for blunder and mate detection.')
+      return
+    }
+    if (prefs.lastImportMode === 'replace_all' && !confirmReplaceAll()) {
       return
     }
 
@@ -83,7 +125,7 @@ export function ImportPage() {
     try {
       const pgn = await fetchPgnFromUrl(url)
       setProgress({ phase: 'fetch', current: 1, total: 1 })
-      await runImportFromText(pgn, url, username, prefs.evalThresholdPawns)
+      await runImportFromText(pgn, url, username)
     } catch (e) {
       captureException('import.fetch', e, { extra: { url } })
       setLog('Could not fetch games from Lichess.')
@@ -98,6 +140,10 @@ export function ImportPage() {
       setLog('Enter your Lichess username.')
       return
     }
+    if (prefs.lastImportMode === 'replace_all' && !confirmReplaceAll()) {
+      e.target.value = ''
+      return
+    }
     saveImportPreferences(prefs)
 
     const f = e.target.files?.[0]
@@ -105,7 +151,7 @@ export function ImportPage() {
     const reader = new FileReader()
     reader.onload = () => {
       const text = typeof reader.result === 'string' ? reader.result : ''
-      void runImportFromText(text, f.name, username, prefs.evalThresholdPawns)
+      void runImportFromText(text, f.name, username)
     }
     reader.readAsText(f)
     e.target.value = ''
@@ -180,6 +226,28 @@ export function ImportPage() {
         </label>
 
         <fieldset className="rounded-box border border-base-300 p-4">
+          <legend className="label-text px-2 font-medium">Import mode</legend>
+          <div className="mt-2 flex flex-col gap-3">
+            {IMPORT_MODE_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="radio"
+                  name="importMode"
+                  className="radio radio-primary radio-sm mt-1"
+                  checked={prefs.lastImportMode === opt.value}
+                  onChange={() => updatePrefs({ lastImportMode: opt.value })}
+                  disabled={busy}
+                />
+                <span>
+                  <span className="font-medium">{opt.label}</span>
+                  <span className="text-base-content/70 block text-sm">{opt.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="rounded-box border border-base-300 p-4">
           <legend className="label-text px-2 font-medium">Lichess API options</legend>
           <div className="mt-2 flex flex-col gap-2">
             <BoolField
@@ -241,8 +309,73 @@ export function ImportPage() {
           {log}
         </pre>
       ) : null}
+
+      <ImportHistoryTable batches={importHistory ?? []} />
     </section>
   )
+}
+
+function ImportHistoryTable({ batches }: { batches: ImportBatchRow[] }) {
+  if (batches.length === 0) {
+    return (
+      <div>
+        <h2 className="mb-2 text-xl font-semibold">Import history</h2>
+        <p className="text-base-content/70 text-sm">No imports yet.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <h2 className="mb-3 text-xl font-semibold">Import history</h2>
+      <div className="overflow-x-auto rounded-box border border-base-300">
+        <table className="table table-sm">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Mode</th>
+              <th>Games</th>
+              <th>Blunders</th>
+              <th>Mates</th>
+            </tr>
+          </thead>
+          <tbody>
+            {batches.map((b) => (
+              <tr key={b.id}>
+                <td className="whitespace-nowrap">{formatImportDate(b.importedAt)}</td>
+                <td>{importModeLabel(b.mode)}</td>
+                <td>
+                  {b.gamesImported}
+                  {b.gamesUpdated > 0 ? ` + ${b.gamesUpdated} upd` : ''}
+                  {b.gamesSkippedDuplicate > 0 ? ` (${b.gamesSkippedDuplicate} skip)` : ''}
+                </td>
+                <td>{b.mistakesAdded}</td>
+                <td>{b.matesAdded}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function importModeLabel(mode: ImportMode): string {
+  switch (mode) {
+    case 'append':
+      return 'Add'
+    case 'update_duplicates':
+      return 'Update'
+    case 'replace_all':
+      return 'Replace all'
+  }
+}
+
+function formatImportDate(ts: number): string {
+  return new Date(ts).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
 type ImportUiProgress =

@@ -5,7 +5,8 @@
 import { parseGames } from '@mliebelt/pgn-parser'
 import type { Tags } from '@mliebelt/pgn-types'
 import { db } from '../db'
-import type { MistakeRow, MissedMateRow } from '../db/schema'
+import type { ImportBatchRow, ImportMode, MistakeRow, MissedMateRow } from '../db/schema'
+import { clearAllGameData, deleteGameFindings } from './deleteGameFindings'
 import { detectMistakesInGame } from './detectMistakes'
 import { detectMissedMatesInGame } from './detectMissedMates'
 import { captureException } from './errorLog'
@@ -17,8 +18,9 @@ export interface ImportResult {
   gamesSeen: number
   gamesSkippedVariant: number
   gamesSkippedNotYou: number
-  gamesSkippedAlreadyImported: number
   gamesImported: number
+  gamesUpdated: number
+  gamesSkippedDuplicate: number
   mistakesAdded: number
   matesAdded: number
   gamesFailed: number
@@ -33,7 +35,15 @@ export interface ImportProgress {
   total: number
 }
 
+export interface ImportMeta {
+  username: string
+  maxGames: number
+  thresholdPawns: number
+}
+
 export interface ImportPgnOptions {
+  mode: ImportMode
+  importMeta: ImportMeta
   onProgress?: (progress: ImportProgress) => void
 }
 
@@ -77,19 +87,78 @@ function gameUrlFromTags(tags: Tags | undefined): string {
   return ''
 }
 
+async function persistGameFindings(
+  gameId: string,
+  gamePgn: string | undefined,
+  gameUrl: string,
+  detectedMistakes: ReturnType<typeof detectMistakesInGame>,
+  detectedMates: ReturnType<typeof detectMissedMatesInGame>,
+  now: number,
+  result: ImportResult,
+): Promise<void> {
+  await db.transaction(
+    'rw',
+    db.importedGames,
+    db.mistakes,
+    db.missedMates,
+    async () => {
+      await db.importedGames.put({
+        gameId,
+        importedAt: now,
+        pgn: gamePgn,
+      })
+
+      for (const d of detectedMistakes) {
+        const row: MistakeRow = {
+          gameId,
+          fenBefore: d.fenBefore,
+          moveSan: d.moveSan,
+          evalBefore: d.evalBefore,
+          evalAfter: d.evalAfter,
+          ply: d.ply,
+          gameUrl,
+          comment: '',
+          reviewed: false,
+          createdAt: now,
+        }
+        await db.mistakes.add(row)
+        result.mistakesAdded += 1
+      }
+
+      for (const d of detectedMates) {
+        const row: MissedMateRow = {
+          gameId,
+          fenBefore: d.fenBefore,
+          mateIn: d.mateIn,
+          myColor: d.myColor,
+          movePlayedSan: d.movePlayedSan,
+          solutionLines: d.solutionLines,
+          ply: d.ply,
+          gameUrl,
+          reviewed: false,
+          createdAt: now,
+        }
+        await db.missedMates.add(row)
+        result.matesAdded += 1
+      }
+    },
+  )
+}
+
 export async function importPgnText(
   pgnText: string,
   username: string,
   thresholdPawns: number,
-  options?: ImportPgnOptions,
+  options: ImportPgnOptions,
 ): Promise<ImportResult> {
-  const onProgress = options?.onProgress
+  const { mode, importMeta, onProgress } = options
   const result: ImportResult = {
     gamesSeen: 0,
     gamesSkippedVariant: 0,
     gamesSkippedNotYou: 0,
-    gamesSkippedAlreadyImported: 0,
     gamesImported: 0,
+    gamesUpdated: 0,
+    gamesSkippedDuplicate: 0,
     mistakesAdded: 0,
     matesAdded: 0,
     gamesFailed: 0,
@@ -108,8 +177,11 @@ export async function importPgnText(
     return result
   }
 
-  const now = Date.now()
+  if (mode === 'replace_all') {
+    await clearAllGameData()
+  }
 
+  const now = Date.now()
   const gamePgns = splitPgnGames(pgnText)
   const totalGames = trees.length
 
@@ -140,13 +212,14 @@ export async function importPgnText(
       stableOfflineGameId(tags, tree.moves.length)
 
     const existing = await db.importedGames.get(gameId)
-    if (existing) {
-      result.gamesSkippedAlreadyImported += 1
+    if (existing && mode === 'append') {
+      result.gamesSkippedDuplicate += 1
       await yieldToUi()
       continue
     }
 
     const gameUrl = gameUrlFromTags(tags)
+    const isUpdate = Boolean(existing) && mode === 'update_duplicates'
 
     let detectedMistakes
     let detectedMates
@@ -172,57 +245,46 @@ export async function importPgnText(
       continue
     }
 
-    await db.transaction(
-      'rw',
-      db.importedGames,
-      db.mistakes,
-      db.missedMates,
-      async () => {
-        await db.importedGames.put({
-          gameId,
-          importedAt: now,
-          pgn: gamePgn,
-        })
+    if (isUpdate) {
+      await deleteGameFindings(gameId)
+    }
 
-        for (const d of detectedMistakes) {
-          const row: MistakeRow = {
-            gameId,
-            fenBefore: d.fenBefore,
-            moveSan: d.moveSan,
-            evalBefore: d.evalBefore,
-            evalAfter: d.evalAfter,
-            ply: d.ply,
-            gameUrl,
-            comment: '',
-            reviewed: false,
-            createdAt: now,
-          }
-          await db.mistakes.add(row)
-          result.mistakesAdded += 1
-        }
-
-        for (const d of detectedMates) {
-          const row: MissedMateRow = {
-            gameId,
-            fenBefore: d.fenBefore,
-            mateIn: d.mateIn,
-            myColor: d.myColor,
-            movePlayedSan: d.movePlayedSan,
-            solutionLines: d.solutionLines,
-            ply: d.ply,
-            gameUrl,
-            reviewed: false,
-            createdAt: now,
-          }
-          await db.missedMates.add(row)
-          result.matesAdded += 1
-        }
-      },
+    await persistGameFindings(
+      gameId,
+      gamePgn,
+      gameUrl,
+      detectedMistakes,
+      detectedMates,
+      now,
+      result,
     )
 
-    result.gamesImported += 1
+    if (isUpdate) {
+      result.gamesUpdated += 1
+    } else {
+      result.gamesImported += 1
+    }
+
     onProgress?.({ phase: 'process', current: i + 1, total: totalGames })
     await yieldToUi()
+  }
+
+  if (!result.parseFailed && result.gamesSeen > 0) {
+    const batch: ImportBatchRow = {
+      importedAt: now,
+      username: importMeta.username,
+      mode,
+      gamesSeen: result.gamesSeen,
+      gamesImported: result.gamesImported,
+      gamesUpdated: result.gamesUpdated,
+      gamesSkippedDuplicate: result.gamesSkippedDuplicate,
+      mistakesAdded: result.mistakesAdded,
+      matesAdded: result.matesAdded,
+      gamesFailed: result.gamesFailed,
+      maxGames: importMeta.maxGames,
+      thresholdPawns: importMeta.thresholdPawns,
+    }
+    await db.importBatches.add(batch)
   }
 
   return result
