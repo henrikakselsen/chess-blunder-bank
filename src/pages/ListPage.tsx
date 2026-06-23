@@ -4,8 +4,12 @@ import { lichessAnalysisUrl } from '../lib/lichessUrl'
 import { useMemo, useState } from 'react'
 import { listTagsOrdered } from '../db/tags'
 
+type ListTab = 'blunders' | 'mates'
+
 export function ListPage() {
+  const [tab, setTab] = useState<ListTab>('blunders')
   const mistakes = useLiveQuery(() => db.mistakes.toArray(), [])
+  const missedMates = useLiveQuery(() => db.missedMates.toArray(), [])
   const tags = useLiveQuery(() => listTagsOrdered(), [])
   const [onlyUnreviewed, setOnlyUnreviewed] = useState(false)
   const [tagFilterId, setTagFilterId] = useState<number | ''>('')
@@ -20,7 +24,7 @@ export function ListPage() {
     [tagFilterId],
   )
 
-  const rows = useMemo(() => {
+  const blunderRows = useMemo(() => {
     let m = mistakes ?? []
     if (onlyUnreviewed) {
       m = m.filter((x) => !x.reviewed)
@@ -32,9 +36,35 @@ export function ListPage() {
     return m.sort((a, b) => b.createdAt - a.createdAt)
   }, [mistakes, onlyUnreviewed, tagFilterId, tagLinks])
 
+  const mateRows = useMemo(() => {
+    let m = missedMates ?? []
+    if (onlyUnreviewed) {
+      m = m.filter((x) => !x.reviewed)
+    }
+    return m.sort((a, b) => b.createdAt - a.createdAt)
+  }, [missedMates, onlyUnreviewed])
+
+  const rows = tab === 'blunders' ? blunderRows : mateRows
+
   return (
     <section className="space-y-6">
-      <h1 className="text-3xl font-bold">All blunders</h1>
+      <h1 className="text-3xl font-bold">All positions</h1>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={`btn btn-sm ${tab === 'blunders' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setTab('blunders')}
+        >
+          Blunders
+        </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${tab === 'mates' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setTab('mates')}
+        >
+          Missed mates
+        </button>
+      </div>
       <div className="flex flex-wrap items-end gap-4">
         <label className="label cursor-pointer gap-2">
           <input
@@ -45,72 +75,121 @@ export function ListPage() {
           />
           <span className="label-text">Unreviewed only</span>
         </label>
-        <label className="form-control">
-          <span className="label py-0">
-            <span className="label-text">Tag</span>
-          </span>
-          <select
-            className="select select-bordered select-sm min-w-40"
-            value={tagFilterId === '' ? '' : String(tagFilterId)}
-            onChange={(e) =>
-              setTagFilterId(e.target.value === '' ? '' : Number(e.target.value))
-            }
-          >
-            <option value="">(all)</option>
-            {(tags ?? []).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {tab === 'blunders' ? (
+          <label className="form-control">
+            <span className="label py-0">
+              <span className="label-text">Tag</span>
+            </span>
+            <select
+              className="select select-bordered select-sm min-w-40"
+              value={tagFilterId === '' ? '' : String(tagFilterId)}
+              onChange={(e) =>
+                setTagFilterId(e.target.value === '' ? '' : Number(e.target.value))
+              }
+            >
+              <option value="">(all)</option>
+              {(tags ?? []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
-        <table className="table table-zebra table-sm">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Eval</th>
-              <th>Move</th>
-              <th>Reviewed</th>
-              <th>Links</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((m) => (
-              <tr key={m.id}>
-                <td>{new Date(m.createdAt).toLocaleString('en-GB')}</td>
-                <td>
-                  {m.evalBefore.toFixed(2)} → {m.evalAfter.toFixed(2)}
-                </td>
-                <td>
-                  <code className="text-sm">{m.moveSan}</code>
-                </td>
-                <td>{m.reviewed ? 'Yes' : 'No'}</td>
-                <td>
-                  <div className="flex flex-wrap gap-2">
-                    {m.gameUrl ? (
-                      <a href={m.gameUrl} target="_blank" rel="noreferrer" className="link link-primary">
-                        Game
-                      </a>
-                    ) : null}
-                    <a
-                      href={lichessAnalysisUrl(m.fenBefore)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="link link-primary"
-                    >
-                      Analysis
-                    </a>
-                  </div>
-                </td>
+        {tab === 'blunders' ? (
+          <table className="table table-zebra table-sm">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Eval</th>
+                <th>Move</th>
+                <th>Reviewed</th>
+                <th>Links</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {blunderRows.map((m) => (
+                <tr key={m.id}>
+                  <td>{new Date(m.createdAt).toLocaleString('en-GB')}</td>
+                  <td>
+                    {m.evalBefore.toFixed(2)} → {m.evalAfter.toFixed(2)}
+                  </td>
+                  <td>
+                    <code className="text-sm">{m.moveSan}</code>
+                  </td>
+                  <td>{m.reviewed ? 'Yes' : 'No'}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-2">
+                      {m.gameUrl ? (
+                        <a href={m.gameUrl} target="_blank" rel="noreferrer" className="link link-primary">
+                          Game
+                        </a>
+                      ) : null}
+                      <a
+                        href={lichessAnalysisUrl(m.fenBefore)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="link link-primary"
+                      >
+                        Analysis
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <table className="table table-zebra table-sm">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Mate in</th>
+                <th>You played</th>
+                <th>Reviewed</th>
+                <th>Links</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mateRows.map((m) => (
+                <tr key={m.id}>
+                  <td>{new Date(m.createdAt).toLocaleString('en-GB')}</td>
+                  <td>{m.mateIn}</td>
+                  <td>
+                    <code className="text-sm">{m.movePlayedSan}</code>
+                  </td>
+                  <td>{m.reviewed ? 'Yes' : 'No'}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-2">
+                      {m.gameUrl ? (
+                        <a href={m.gameUrl} target="_blank" rel="noreferrer" className="link link-primary">
+                          Game
+                        </a>
+                      ) : null}
+                      <a
+                        href={lichessAnalysisUrl(m.fenBefore)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="link link-primary"
+                      >
+                        Analysis
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
       {!rows.length ? (
-        <p className="text-base-content/70">No blunders yet — import a PGN first.</p>
+        <p className="text-base-content/70">
+          {tab === 'blunders'
+            ? 'No blunders yet — import a PGN first.'
+            : 'No missed mates yet — import analysed games first.'}
+        </p>
       ) : null}
     </section>
   )

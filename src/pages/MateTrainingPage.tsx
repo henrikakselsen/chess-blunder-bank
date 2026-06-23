@@ -1,14 +1,23 @@
 import { Chess } from 'chess.js'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import type { PieceDropHandlerArgs } from 'react-chessboard'
+import { SideToMoveBadge } from '../components/SideToMoveBadge'
+import { sideToMoveFromFen } from '../lib/sideToMove'
 import { db } from '../db'
 import type { MissedMateRow } from '../db/schema'
 import { lichessAnalysisUrl } from '../lib/lichessUrl'
+import {
+  clearMateTrainingSession,
+  resolveInitialSession,
+  rowsFromIds,
+  saveMateTrainingSession,
+  shuffleQueueIds,
+  syncSessionWithSource,
+  type MateFilter,
+} from '../lib/mateTrainingSession'
 import { shuffleInPlace } from '../lib/shuffle'
-
-type MateFilter = 'all' | 1 | 2
 
 export function MateTrainingPage() {
   const unreviewed = useLiveQuery(
@@ -26,12 +35,6 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
     () => items.filter((m) => filter === 'all' || m.mateIn === filter),
     [items, filter],
   )
-
-  const idSignature = useMemo(() => {
-    const ids = filtered.map((m) => m.id).filter((n): n is number => n != null)
-    ids.sort((a, b) => a - b)
-    return ids.join(',')
-  }, [filtered])
 
   return (
     <section className="space-y-4">
@@ -58,7 +61,7 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
           Import.
         </p>
       ) : (
-        <MatePuzzle key={idSignature} sourceQueue={filtered} />
+        <MatePuzzle key={filter} filter={filter} sourceQueue={filtered} />
       )}
     </section>
   )
@@ -84,7 +87,30 @@ function FilterButton({
   )
 }
 
-function MatePuzzle({ sourceQueue }: { sourceQueue: MissedMateRow[] }) {
+function MatePuzzle({
+  filter,
+  sourceQueue,
+}: {
+  filter: MateFilter
+  sourceQueue: MissedMateRow[]
+}) {
+  const [activeQueue, setActiveQueue] = useState(
+    () => resolveInitialSession(filter, sourceQueue).activeQueue,
+  )
+  const [round, setRound] = useState(
+    () => resolveInitialSession(filter, sourceQueue).round,
+  )
+  const [repeatRound, setRepeatRound] = useState(
+    () => resolveInitialSession(filter, sourceQueue).repeatRound,
+  )
+  const [pendingRepeatIds, setPendingRepeatIds] = useState(
+    () => resolveInitialSession(filter, sourceQueue).pendingRepeatIds,
+  )
+  const [idx, setIdx] = useState(() => resolveInitialSession(filter, sourceQueue).idx)
+  const [sessionComplete, setSessionComplete] = useState(
+    () => resolveInitialSession(filter, sourceQueue).sessionComplete,
+  )
+
   const byId = useMemo(() => {
     const map = new Map<number, MissedMateRow>()
     for (const row of sourceQueue) {
@@ -93,14 +119,44 @@ function MatePuzzle({ sourceQueue }: { sourceQueue: MissedMateRow[] }) {
     return map
   }, [sourceQueue])
 
-  const mainQueue = useMemo(() => shuffleQueue(sourceQueue), [sourceQueue])
+  const skipSourceSync = useRef(true)
+  const stateRef = useRef({ activeQueue, idx, pendingRepeatIds })
 
-  const [activeQueue, setActiveQueue] = useState(mainQueue)
-  const [round, setRound] = useState<'main' | 'repeat'>('main')
-  const [repeatRound, setRepeatRound] = useState(0)
-  const [pendingRepeatIds, setPendingRepeatIds] = useState<Set<number>>(() => new Set())
-  const [idx, setIdx] = useState(0)
-  const [sessionComplete, setSessionComplete] = useState(false)
+  useEffect(() => {
+    stateRef.current = { activeQueue, idx, pendingRepeatIds }
+  }, [activeQueue, idx, pendingRepeatIds])
+
+  useEffect(() => {
+    if (skipSourceSync.current) {
+      skipSourceSync.current = false
+      return
+    }
+    const { activeQueue: prevQueue, idx: prevIdx, pendingRepeatIds: prevPending } =
+      stateRef.current
+    const synced = syncSessionWithSource(sourceQueue, prevQueue, prevPending, prevIdx)
+    setActiveQueue(synced.activeQueue)
+    setIdx(synced.idx)
+    setPendingRepeatIds(synced.pendingRepeatIds)
+  }, [sourceQueue])
+
+  const pendingKey = useMemo(
+    () => [...pendingRepeatIds].sort((a, b) => a - b).join(','),
+    [pendingRepeatIds],
+  )
+
+  useEffect(() => {
+    const ids = activeQueue
+      .map((m) => m.id)
+      .filter((n): n is number => n != null)
+    saveMateTrainingSession(filter, {
+      activeQueueIds: ids,
+      idx,
+      round,
+      repeatRound,
+      pendingRepeatIds: pendingKey ? pendingKey.split(',').map(Number) : [],
+      sessionComplete,
+    })
+  }, [filter, activeQueue, idx, round, repeatRound, pendingKey, sessionComplete])
 
   const current = activeQueue[idx] ?? null
 
@@ -140,12 +196,31 @@ function MatePuzzle({ sourceQueue }: { sourceQueue: MissedMateRow[] }) {
     setIdx((i) => Math.max(0, i - 1))
   }, [])
 
+  const startNewSession = useCallback(() => {
+    clearMateTrainingSession(filter)
+    const ids = shuffleQueueIds(sourceQueue)
+    setActiveQueue(rowsFromIds(ids, byId))
+    setRound('main')
+    setRepeatRound(0)
+    setPendingRepeatIds(new Set())
+    setIdx(0)
+    setSessionComplete(false)
+  }, [byId, filter, sourceQueue])
+
   if (sessionComplete) {
     return (
-      <p className="text-success font-medium">
-        All positions solved this session
-        {repeatRound > 0 ? ` (including ${repeatRound} repetition round${repeatRound > 1 ? 's' : ''})` : ''}.
-      </p>
+      <div className="space-y-3">
+        <p className="text-success font-medium">
+          All positions solved this session
+          {repeatRound > 0
+            ? ` (including ${repeatRound} repetition round${repeatRound > 1 ? 's' : ''})`
+            : ''}
+          .
+        </p>
+        <button type="button" className="btn btn-primary btn-sm" onClick={startNewSession}>
+          Start new session
+        </button>
+      </div>
     )
   }
 
@@ -157,8 +232,6 @@ function MatePuzzle({ sourceQueue }: { sourceQueue: MissedMateRow[] }) {
       current={current}
       idx={idx}
       queueLength={activeQueue.length}
-      round={round}
-      repeatRound={repeatRound}
       queuedCount={pendingRepeatIds.size}
       onWrongMatingMove={() => {
         if (current.id != null) enqueueRepeat(current.id)
@@ -173,8 +246,6 @@ function MatePuzzleBoard({
   current,
   idx,
   queueLength,
-  round,
-  repeatRound,
   queuedCount,
   onWrongMatingMove,
   onPrev,
@@ -183,8 +254,6 @@ function MatePuzzleBoard({
   current: MissedMateRow
   idx: number
   queueLength: number
-  round: 'main' | 'repeat'
-  repeatRound: number
   queuedCount: number
   onWrongMatingMove: () => void
   onPrev: () => void
@@ -299,10 +368,6 @@ function MatePuzzleBoard({
 
   const hintMove = current.solutionLines[0]?.[mate2Step]
   const sideToMove = sideToMoveFromFen(boardFen)
-  const roundLabel =
-    round === 'main'
-      ? 'Round 1'
-      : `Repetition round ${repeatRound} (${queueLength} position${queueLength === 1 ? '' : 's'})`
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
@@ -326,10 +391,6 @@ function MatePuzzleBoard({
         </div>
       </div>
       <div className="flex flex-col gap-4">
-        <p className="text-base-content/80 text-sm font-medium">{roundLabel}</p>
-        <p>
-          <strong>To move:</strong> {sideToMoveLabel(sideToMove)}
-        </p>
         <p>
           <strong>Mate in {current.mateIn}</strong>
           {phase === 'play' && current.mateIn === 2 && mate2Step === 1
@@ -408,42 +469,7 @@ function MatePuzzleBoard({
   )
 }
 
-function shuffleQueue(rows: MissedMateRow[]): MissedMateRow[] {
-  const list = [...rows]
-  const ids = list.map((m) => m.id!).filter((n): n is number => n != null)
-  shuffleInPlace(ids)
-  const byId = new Map(list.map((m) => [m.id!, m]))
-  return ids.map((id) => byId.get(id)!).filter(Boolean)
-}
-
 function boardSize() {
   if (typeof window === 'undefined') return 480
   return Math.min(520, Math.floor(window.innerWidth - 64))
-}
-
-function sideToMoveFromFen(fen: string): 'white' | 'black' {
-  try {
-    return new Chess(fen).turn() === 'w' ? 'white' : 'black'
-  } catch {
-    return 'white'
-  }
-}
-
-function sideToMoveLabel(side: 'white' | 'black'): string {
-  return side === 'white' ? 'White' : 'Black'
-}
-
-function SideToMoveBadge({ side }: { side: 'white' | 'black' }) {
-  const isWhite = side === 'white'
-  return (
-    <span
-      className={`badge badge-lg font-medium ${
-        isWhite
-          ? 'border border-base-300 bg-white text-neutral'
-          : 'border border-neutral bg-neutral text-white'
-      }`}
-    >
-      {sideToMoveLabel(side)} to move
-    </span>
-  )
 }

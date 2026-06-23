@@ -1,6 +1,10 @@
+import { Chess } from 'chess.js'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
+import type { PieceDropHandlerArgs } from 'react-chessboard'
+import { SideToMoveBadge } from '../components/SideToMoveBadge'
+import { sideToMoveFromFen } from '../lib/sideToMove'
 import { db } from '../db'
 import {
   getOrCreateTagByName,
@@ -136,8 +140,6 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
     return null
   }
 
-  const fen = current.fenBefore
-
   return (
     <section className="space-y-4">
       <h1 className="text-3xl font-bold">Review</h1>
@@ -145,19 +147,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
         Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, Esc = blur field.
       </p>
       <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
-        <div className="flex justify-center">
-          <div
-            className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
-            style={{ width: boardSize(), maxWidth: '100%' }}
-          >
-            <Chessboard
-              options={{
-                position: fen,
-                allowDragging: false,
-              }}
-            />
-          </div>
-        </div>
+        <ReviewBoard key={current.id} fenBefore={current.fenBefore} />
         <div className="flex flex-col gap-4">
           <p>
             <strong>Eval:</strong> {current.evalBefore.toFixed(2)} → {current.evalAfter.toFixed(2)}{' '}
@@ -186,7 +176,12 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
             </button>
           </div>
           <div className="flex flex-wrap gap-4">
-            <a href={lichessAnalysisUrl(fen)} target="_blank" rel="noreferrer" className="link link-primary">
+            <a
+              href={lichessAnalysisUrl(current.fenBefore)}
+              target="_blank"
+              rel="noreferrer"
+              className="link link-primary"
+            >
               Open analysis on Lichess
             </a>
             {current.gameUrl ? (
@@ -247,6 +242,63 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
         </div>
       </div>
     </section>
+  )
+}
+
+function ReviewBoard({ fenBefore }: { fenBefore: string }) {
+  const [boardFen, setBoardFen] = useState(fenBefore)
+  const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
+  const sideToMove = sideToMoveFromFen(boardFen)
+
+  const resetBoard = useCallback(() => {
+    setBoardFen(fenBefore)
+  }, [fenBefore])
+
+  const onPieceDrop = useCallback(
+    ({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean => {
+      if (!targetSquare) return false
+      const chess = new Chess(boardFen)
+      try {
+        const move = chess.move({
+          from: sourceSquare,
+          to: targetSquare,
+          promotion: 'q',
+        })
+        if (!move) return false
+      } catch {
+        return false
+      }
+      setBoardFen(chess.fen())
+      return true
+    },
+    [boardFen],
+  )
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <SideToMoveBadge side={sideToMove} />
+      <div
+        className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
+        style={{ width: boardSize(), maxWidth: '100%' }}
+      >
+        <Chessboard
+          options={{
+            position: boardFen,
+            boardOrientation: startOrientation,
+            allowDragging: true,
+            canDragPiece: ({ piece }) => {
+              const chess = new Chess(boardFen)
+              const turn = chess.turn() === 'w' ? 'w' : 'b'
+              return piece.pieceType.startsWith(turn)
+            },
+            onPieceDrop,
+          }}
+        />
+      </div>
+      <button type="button" className="btn btn-outline btn-sm" onClick={resetBoard}>
+        Reset board
+      </button>
+    </div>
   )
 }
 
