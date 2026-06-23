@@ -1,39 +1,40 @@
-# Sjakkfeil
+# Chess Blunder Bank
 
-Lokal webapp som importerer **analyserte** Lichess-partier (PGN med `evals=true`), finner egne trekk med stort eval-fall, og lar deg gjennomgå posisjoner med notater og tagger. Analyse åpnes på Lichess.
+**Chess Blunder Bank** helps you learn from your own games by importing analysed Lichess PGNs, surfacing big evaluation drops on your moves, and reviewing those positions with notes and tags—then opening deeper analysis on Lichess when you want it.
 
-## Utvikling
+**Repository:** [github.com/henrikakselsen/chess-blunder-bank](https://github.com/henrikakselsen/chess-blunder-bank)
+
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Bygg:
+Build:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## Lichess-import
+## Lichess import
 
-1. Under **Innstillinger**: fyll inn Lichess-brukernavn og terskel (bønder).
-2. Under **Import**: bruk en URL som inkluderer `evals=true` og `analysed=true`, f.eks.  
-   `https://lichess.org/api/games/user/BRUKERNAVN?tags=true&evals=true&analysed=true&clocks=false&opening=false&max=50`
-3. Hvis nettleseren ikke får hentet PGN direkte (CORS), bruk proxy i dev: erstatt `https://lichess.org` med `/lichess` (Vite-proxy er satt opp i `vite.config.ts`).
+1. Under **Import**, enter your Lichess username, max games, and blunder threshold.
+2. Keep **evals** and **analysed** enabled (required for blunder and mate detection).
+3. Click **Fetch and import**. The app calls Lichess via the dev proxy at `/lichess` (see `vite.config.ts`).
 
-## Utvikling med cloud agent (lukket maskin)
+## Cloud agent workflow
 
-En **cloud agent** (f.eks. Cursor Cloud Agent, eller agent i en nettbasert IDE) kan jobbe mot **samme kodebase** som ligger i et **fjernrepo** (GitHub/GitLab). Slik kan du lukke PC-en mens agenten committer, åpner PR eller pushet til en branch.
+A **cloud agent** can work against the same codebase in a **remote Git** repo (GitHub/GitLab), so your laptop does not need to stay on.
 
-1. Opprett et **privat repo** og push denne mappen (`git init`, `git remote add`, `git push`).
-2. Koble repoet til agent-tjenesten du bruker og gi den instruks (f.eks. «følg README og plan for Sjakkfeil»).
-3. Kjør **lokal** `npm run dev` / `npm run build` når du vil verifisere — eller bruk **GitHub Codespaces** / **Cursor web** slik at `npm run dev` også kjører i skyen.
+1. Clone or push this repo (see link above).
+2. Point your agent at the repo and give it tasks (e.g. follow this README).
+3. Run `npm run dev` / `npm run build` locally or in **GitHub Codespaces** / a web IDE to verify.
 
-**Merk:** IndexedDB-data i appen ligger **kun i nettleseren** på den maskinen du bruker til å åpne appen; det er ikke synkronisert via Git.
+**Note:** IndexedDB data in the app lives **only in the browser** you use to open the app; it is not synced via Git.
 
-## Teknologi
+## Stack
 
 - Vite, React, TypeScript  
 - chess.js, @mliebelt/pgn-parser  

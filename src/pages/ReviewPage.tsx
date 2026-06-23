@@ -103,7 +103,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
 
   async function deleteCurrent() {
     if (!current?.id) return
-    if (!window.confirm('Slette denne posisjonen permanent?')) return
+    if (!window.confirm('Delete this position permanently?')) return
     await db.mistakeTags.where('mistakeId').equals(current.id).delete()
     await db.mistakes.delete(current.id)
   }
@@ -125,9 +125,9 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
 
   if (!queue.length) {
     return (
-      <section>
-        <h1>Gjennomgang</h1>
-        <p>Ingen ugjennomgåtte tabber — bra jobba, eller importer flere partier.</p>
+      <section className="space-y-4">
+        <h1 className="text-3xl font-bold">Review</h1>
+        <p className="text-base-content/80">No unreviewed blunders — nice work, or import more games.</p>
       </section>
     )
   }
@@ -139,15 +139,17 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
   const fen = current.fenBefore
 
   return (
-    <section>
-      <h1>Gjennomgang</h1>
-      <p className="muted">
-        Snarveier: piltaster eller p/n = forrige/neste, r eller Enter = merk
-        gjennomgått, Esc = fjern fokus fra felt.
+    <section className="space-y-4">
+      <h1 className="text-3xl font-bold">Review</h1>
+      <p className="text-base-content/70 text-sm">
+        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, Esc = blur field.
       </p>
-      <div className="review-grid">
-        <div className="board-wrap">
-          <div style={{ width: boardSize(), maxWidth: '100%' }}>
+      <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
+        <div className="flex justify-center">
+          <div
+            className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
+            style={{ width: boardSize(), maxWidth: '100%' }}
+          >
             <Chessboard
               options={{
                 position: fen,
@@ -156,39 +158,40 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
             />
           </div>
         </div>
-        <div className="stack">
+        <div className="flex flex-col gap-4">
           <p>
             <strong>Eval:</strong> {current.evalBefore.toFixed(2)} → {current.evalAfter.toFixed(2)}{' '}
-            (Δ {(current.evalAfter - current.evalBefore).toFixed(2)} fra hvits perspektiv)
+            {`(Δ ${(current.evalAfter - current.evalBefore).toFixed(2)} from White's perspective)`}
           </p>
           <p>
-            <strong>Trekk du spilte:</strong> <code>{current.moveSan}</code>
+            <strong>Your move:</strong> <code className="text-primary">{current.moveSan}</code>
           </p>
-          <div className="row">
-            <button type="button" onClick={() => go(-1)} disabled={idx <= 0}>
-              Forrige
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => go(-1)} disabled={idx <= 0}>
+              Previous
             </button>
             <button
               type="button"
+              className="btn btn-outline btn-sm"
               onClick={() => go(1)}
               disabled={idx >= queue.length - 1}
             >
-              Neste
+              Next
             </button>
-            <button type="button" onClick={() => void toggleReviewed()}>
-              Merk som gjennomgått
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => void toggleReviewed()}>
+              Mark as reviewed
             </button>
-            <button type="button" className="danger" onClick={() => void deleteCurrent()}>
-              Slett
+            <button type="button" className="btn btn-error btn-sm btn-outline" onClick={() => void deleteCurrent()}>
+              Delete
             </button>
           </div>
-          <div className="row">
-            <a href={lichessAnalysisUrl(fen)} target="_blank" rel="noreferrer">
-              Åpne analyse på Lichess
+          <div className="flex flex-wrap gap-4">
+            <a href={lichessAnalysisUrl(fen)} target="_blank" rel="noreferrer" className="link link-primary">
+              Open analysis on Lichess
             </a>
             {current.gameUrl ? (
-              <a href={current.gameUrl} target="_blank" rel="noreferrer">
-                Åpne parti
+              <a href={current.gameUrl} target="_blank" rel="noreferrer" className="link link-primary">
+                Open game
               </a>
             ) : null}
           </div>
@@ -198,13 +201,17 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
             onSave={(t) => void saveComment(t)}
           />
           <div>
-            <strong>Tagger</strong>
-            <div className="tag-grid">
+            <strong>Tags</strong>
+            <div className="mt-2 flex flex-wrap gap-2">
               {(tags ?? []).map((t) =>
                 t.id != null ? (
-                  <label key={t.id} className="tag-chip">
+                  <label
+                    key={t.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-full border border-base-300 bg-base-200 px-3 py-1.5 text-sm"
+                  >
                     <input
                       type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm"
                       checked={selectedTagIds?.includes(t.id) ?? false}
                       onChange={() => void toggleTag(t.id!)}
                     />
@@ -214,7 +221,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
               )}
             </div>
             <form
-              className="row"
+              className="mt-3 flex flex-wrap items-center gap-2"
               onSubmit={(e) => {
                 e.preventDefault()
                 const fd = new FormData(e.currentTarget)
@@ -224,11 +231,17 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
                 })
               }}
             >
-              <input name="newtag" placeholder="Ny tagg" />
-              <button type="submit">Legg til</button>
+              <input
+                name="newtag"
+                placeholder="New tag"
+                className="input input-bordered input-sm w-full max-w-xs"
+              />
+              <button type="submit" className="btn btn-primary btn-sm">
+                Add
+              </button>
             </form>
           </div>
-          <p className="muted">
+          <p className="text-base-content/70 text-sm">
             {idx + 1} / {queue.length}
           </p>
         </div>
@@ -246,9 +259,12 @@ function CommentField({
 }) {
   const [text, setText] = useState(initialComment)
   return (
-    <label className="field">
-      <span>Notat</span>
+    <label className="form-control w-full">
+      <span className="label">
+        <span className="label-text">Note</span>
+      </span>
       <textarea
+        className="textarea textarea-bordered min-h-28 w-full"
         rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}

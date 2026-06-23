@@ -2,6 +2,7 @@ import { Chess } from 'chess.js'
 import type { PgnMove } from '@mliebelt/pgn-types'
 import { getEvalFromMove } from './eval'
 
+/** One detected blunder: position before your move, SAN, eval before/after (White POV). */
 export interface DetectedMistake {
   fenBefore: string
   moveSan: string
@@ -16,6 +17,7 @@ function sanFromPgnMove(m: PgnMove): string {
   return s
 }
 
+/** Walk the main line and collect positions where your move drops eval by at least `thresholdPawns`. */
 export function detectMistakesInGame(
   mainLine: PgnMove[],
   myColor: 'white' | 'black',
@@ -37,7 +39,7 @@ export function detectMistakesInGame(
     const san = sanFromPgnMove(move)
     const played = chess.move(san)
     if (!played) {
-      throw new Error(`Kunne ikke spille trekk «${san}» i stillingen.`)
+      throw new Error(`Could not play move "${san}" in this position.`)
     }
     ply += 1
 

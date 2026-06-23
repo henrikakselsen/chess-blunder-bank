@@ -7,7 +7,7 @@ function getStr(tags: Tags | undefined, key: string): string {
   return ''
 }
 
-/** Stabil ID for parti uten Lichess Site (f.eks. ren PGN-fil). */
+/** Stable game id when there is no Lichess Site tag (e.g. plain PGN file). */
 export function stableOfflineGameId(tags: Tags | undefined, moveCount: number): string {
   const w = getStr(tags, 'White')
   const b = getStr(tags, 'Black')

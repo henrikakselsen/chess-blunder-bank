@@ -1,10 +1,17 @@
+/**
+ * Parse one or more PGN games, skip non-standard variants and already-imported Lichess games,
+ * persist blunders and missed mates for the configured user in one pass.
+ */
 import { parseGames } from '@mliebelt/pgn-parser'
 import type { Tags } from '@mliebelt/pgn-types'
 import { db } from '../db'
-import type { MistakeRow } from '../db/schema'
+import type { MistakeRow, MissedMateRow } from '../db/schema'
 import { detectMistakesInGame } from './detectMistakes'
+import { detectMissedMatesInGame } from './detectMissedMates'
+import { captureException } from './errorLog'
 import { stableOfflineGameId } from './gameId'
 import { extractLichessGameId, normalizeLichessUsername } from './lichessUrl'
+import { splitPgnGames } from './splitPgn'
 
 export interface ImportResult {
   gamesSeen: number
@@ -13,7 +20,27 @@ export interface ImportResult {
   gamesSkippedAlreadyImported: number
   gamesImported: number
   mistakesAdded: number
-  errors: string[]
+  matesAdded: number
+  gamesFailed: number
+  parseFailed: boolean
+}
+
+export type ImportProgressPhase = 'parse' | 'process'
+
+export interface ImportProgress {
+  phase: ImportProgressPhase
+  current: number
+  total: number
+}
+
+export interface ImportPgnOptions {
+  onProgress?: (progress: ImportProgress) => void
+}
+
+async function yieldToUi(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0)
+  })
 }
 
 function getTag(tags: Tags | undefined, key: string): string | undefined {
@@ -54,7 +81,9 @@ export async function importPgnText(
   pgnText: string,
   username: string,
   thresholdPawns: number,
+  options?: ImportPgnOptions,
 ): Promise<ImportResult> {
+  const onProgress = options?.onProgress
   const result: ImportResult = {
     gamesSeen: 0,
     gamesSkippedVariant: 0,
@@ -62,76 +91,100 @@ export async function importPgnText(
     gamesSkippedAlreadyImported: 0,
     gamesImported: 0,
     mistakesAdded: 0,
-    errors: [],
+    matesAdded: 0,
+    gamesFailed: 0,
+    parseFailed: false,
   }
 
   let trees: ReturnType<typeof parseGames>
   try {
+    onProgress?.({ phase: 'parse', current: 0, total: 1 })
     trees = parseGames(pgnText)
+    onProgress?.({ phase: 'parse', current: 1, total: 1 })
+    await yieldToUi()
   } catch (e) {
-    result.errors.push(
-      e instanceof Error ? e.message : 'Kunne ikke parse PGN.',
-    )
+    result.parseFailed = true
+    captureException('import.parse', e)
     return result
   }
 
   const now = Date.now()
 
-  await db.transaction(
-    'rw',
-    db.importedGames,
-    db.mistakes,
-    db.mistakeTags,
-    async () => {
-      for (const tree of trees) {
-        result.gamesSeen += 1
-        const tags = tree.tags
+  const gamePgns = splitPgnGames(pgnText)
+  const totalGames = trees.length
 
-        if (!isStandardChess(tags)) {
-          result.gamesSkippedVariant += 1
-          continue
-        }
+  for (let i = 0; i < trees.length; i++) {
+    const tree = trees[i]!
+    result.gamesSeen += 1
+    const tags = tree.tags
+    const gamePgn = gamePgns.length === trees.length ? gamePgns[i] : undefined
 
-        const myColor = resolveMyColor(tags, username)
-        if (!myColor) {
-          result.gamesSkippedNotYou += 1
-          continue
-        }
+    onProgress?.({ phase: 'process', current: i, total: totalGames })
 
-        const site = getTag(tags, 'Site')
-        const gameId =
-          extractLichessGameId(site) ??
-          stableOfflineGameId(tags, tree.moves.length)
+    if (!isStandardChess(tags)) {
+      result.gamesSkippedVariant += 1
+      await yieldToUi()
+      continue
+    }
 
-        const existing = await db.importedGames.get(gameId)
-        if (existing) {
-          result.gamesSkippedAlreadyImported += 1
-          continue
-        }
+    const myColor = resolveMyColor(tags, username)
+    if (!myColor) {
+      result.gamesSkippedNotYou += 1
+      await yieldToUi()
+      continue
+    }
 
-        const gameUrl = gameUrlFromTags(tags)
+    const site = getTag(tags, 'Site')
+    const gameId =
+      extractLichessGameId(site) ??
+      stableOfflineGameId(tags, tree.moves.length)
 
-        let detected
-        try {
-          detected = detectMistakesInGame(
-            tree.moves,
-            myColor,
-            thresholdPawns,
-          )
-        } catch (e) {
-          result.errors.push(
-            e instanceof Error ? e.message : String(e),
-          )
-          continue
-        }
+    const existing = await db.importedGames.get(gameId)
+    if (existing) {
+      result.gamesSkippedAlreadyImported += 1
+      await yieldToUi()
+      continue
+    }
 
+    const gameUrl = gameUrlFromTags(tags)
+
+    let detectedMistakes
+    let detectedMates
+    try {
+      detectedMistakes = detectMistakesInGame(
+        tree.moves,
+        myColor,
+        thresholdPawns,
+      )
+      detectedMates = detectMissedMatesInGame(tree.moves, myColor)
+    } catch (e) {
+      result.gamesFailed += 1
+      captureException('import.game', e, {
+        gameId,
+        extra: {
+          myColor,
+          moves: tree.moves.length,
+          white: getTag(tags, 'White'),
+          black: getTag(tags, 'Black'),
+        },
+      })
+      await yieldToUi()
+      continue
+    }
+
+    await db.transaction(
+      'rw',
+      db.importedGames,
+      db.mistakes,
+      db.missedMates,
+      async () => {
         await db.importedGames.put({
           gameId,
           importedAt: now,
+          pgn: gamePgn,
         })
-        result.gamesImported += 1
 
-        for (const d of detected) {
+        for (const d of detectedMistakes) {
           const row: MistakeRow = {
             gameId,
             fenBefore: d.fenBefore,
@@ -147,9 +200,30 @@ export async function importPgnText(
           await db.mistakes.add(row)
           result.mistakesAdded += 1
         }
-      }
-    },
-  )
+
+        for (const d of detectedMates) {
+          const row: MissedMateRow = {
+            gameId,
+            fenBefore: d.fenBefore,
+            mateIn: d.mateIn,
+            myColor: d.myColor,
+            movePlayedSan: d.movePlayedSan,
+            solutionLines: d.solutionLines,
+            ply: d.ply,
+            gameUrl,
+            reviewed: false,
+            createdAt: now,
+          }
+          await db.missedMates.add(row)
+          result.matesAdded += 1
+        }
+      },
+    )
+
+    result.gamesImported += 1
+    onProgress?.({ phase: 'process', current: i + 1, total: totalGames })
+    await yieldToUi()
+  }
 
   return result
 }

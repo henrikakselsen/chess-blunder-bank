@@ -33,26 +33,30 @@ export function ListPage() {
   }, [mistakes, onlyUnreviewed, tagFilterId, tagLinks])
 
   return (
-    <section>
-      <h1>Alle tabber</h1>
-      <div className="row filters">
-        <label>
+    <section className="space-y-6">
+      <h1 className="text-3xl font-bold">All blunders</h1>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="label cursor-pointer gap-2">
           <input
             type="checkbox"
+            className="checkbox checkbox-primary"
             checked={onlyUnreviewed}
             onChange={(e) => setOnlyUnreviewed(e.target.checked)}
           />
-          Kun ugjennomgåtte
+          <span className="label-text">Unreviewed only</span>
         </label>
-        <label>
-          Tagg
+        <label className="form-control">
+          <span className="label py-0">
+            <span className="label-text">Tag</span>
+          </span>
           <select
+            className="select select-bordered select-sm min-w-40"
             value={tagFilterId === '' ? '' : String(tagFilterId)}
             onChange={(e) =>
               setTagFilterId(e.target.value === '' ? '' : Number(e.target.value))
             }
           >
-            <option value="">(alle)</option>
+            <option value="">(all)</option>
             {(tags ?? []).map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -61,42 +65,53 @@ export function ListPage() {
           </select>
         </label>
       </div>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Dato</th>
-            <th>Eval</th>
-            <th>Trekk</th>
-            <th>Gjennomgått</th>
-            <th>Lenker</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((m) => (
-            <tr key={m.id}>
-              <td>{new Date(m.createdAt).toLocaleString('nb-NO')}</td>
-              <td>
-                {m.evalBefore.toFixed(2)} → {m.evalAfter.toFixed(2)}
-              </td>
-              <td>
-                <code>{m.moveSan}</code>
-              </td>
-              <td>{m.reviewed ? 'Ja' : 'Nei'}</td>
-              <td className="links">
-                {m.gameUrl ? (
-                  <a href={m.gameUrl} target="_blank" rel="noreferrer">
-                    Parti
-                  </a>
-                ) : null}{' '}
-                <a href={lichessAnalysisUrl(m.fenBefore)} target="_blank" rel="noreferrer">
-                  Analyse
-                </a>
-              </td>
+      <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+        <table className="table table-zebra table-sm">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Eval</th>
+              <th>Move</th>
+              <th>Reviewed</th>
+              <th>Links</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {!rows.length ? <p>Ingen tabber ennå — importer PGN først.</p> : null}
+          </thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr key={m.id}>
+                <td>{new Date(m.createdAt).toLocaleString('en-GB')}</td>
+                <td>
+                  {m.evalBefore.toFixed(2)} → {m.evalAfter.toFixed(2)}
+                </td>
+                <td>
+                  <code className="text-sm">{m.moveSan}</code>
+                </td>
+                <td>{m.reviewed ? 'Yes' : 'No'}</td>
+                <td>
+                  <div className="flex flex-wrap gap-2">
+                    {m.gameUrl ? (
+                      <a href={m.gameUrl} target="_blank" rel="noreferrer" className="link link-primary">
+                        Game
+                      </a>
+                    ) : null}
+                    <a
+                      href={lichessAnalysisUrl(m.fenBefore)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="link link-primary"
+                    >
+                      Analysis
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!rows.length ? (
+        <p className="text-base-content/70">No blunders yet — import a PGN first.</p>
+      ) : null}
     </section>
   )
 }

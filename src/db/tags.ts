@@ -6,11 +6,11 @@ export async function listTagsOrdered() {
 
 export async function getOrCreateTagByName(raw: string): Promise<number> {
   const name = raw.trim()
-  if (!name) throw new Error('Tomt tagnavn')
+  if (!name) throw new Error('Tag name cannot be empty')
   const existing = await db.tags.where('name').equals(name).first()
   if (existing?.id != null) return existing.id
   const id = await db.tags.add({ name })
-  if (typeof id !== 'number') throw new Error('Kunne ikke opprette tagg')
+  if (typeof id !== 'number') throw new Error('Could not create tag')
   return id
 }
 

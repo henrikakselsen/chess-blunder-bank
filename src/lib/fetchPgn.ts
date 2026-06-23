@@ -1,5 +1,5 @@
 /**
- * Henter PGN fra Lichess. Bruk full `https://lichess.org/...` eller proxy-sti `/lichess/api/...`.
+ * Fetch PGN from Lichess. Use a full `https://lichess.org/...` URL or dev proxy path `/lichess/api/...`.
  */
 export async function fetchPgnFromUrl(url: string): Promise<string> {
   const u = url.trim()

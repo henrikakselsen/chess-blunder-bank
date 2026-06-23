@@ -1,9 +1,11 @@
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { appLogPlugin } from './vite-app-log-plugin'
 
-/** Bruk `/lichess/...` som base hvis nettleseren blokkerer CORS mot lichess.org */
+/** Use `/lichess/...` as base if the browser blocks CORS to lichess.org */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react(), appLogPlugin()],
   server: {
     proxy: {
       '/lichess': {
