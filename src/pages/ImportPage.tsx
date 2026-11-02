@@ -3,14 +3,14 @@ import { useState } from 'react'
 import { db } from '../db'
 import type { ImportBatchRow, ImportMode } from '../db/schema'
 import { importPgnText, type ImportProgress } from '../lib/importPgn'
-import { fetchPgnFromUrl } from '../lib/fetchPgn'
 import {
   defaultImportPreferences,
   loadImportPreferences,
   saveImportPreferences,
   type ImportPreferences,
 } from '../lib/importPreferences'
-import { buildLichessGamesUrl } from '../lib/lichessUrl'
+import { fetchLichessGamesPgn } from '../lib/fetchPgn'
+import { buildLichessGamesProxyUrl, buildLichessGamesUrl } from '../lib/lichessUrl'
 import { captureException } from '../lib/errorLog'
 
 const IMPORT_MODE_OPTIONS: { value: ImportMode; label: string; hint: string }[] = [
@@ -109,7 +109,7 @@ export function ImportPage() {
 
     saveImportPreferences(prefs)
 
-    const url = buildLichessGamesUrl({
+    const query = {
       username,
       max: prefs.max,
       tags: prefs.tags,
@@ -117,18 +117,21 @@ export function ImportPage() {
       analysed: prefs.analysed,
       clocks: prefs.clocks,
       opening: prefs.opening,
-    })
+    }
+    const url = buildLichessGamesUrl(query)
+    const proxyUrl = buildLichessGamesProxyUrl(query)
 
     setBusy(true)
     setLog(null)
     setProgress({ phase: 'fetch', current: 0, total: 1 })
     try {
-      const pgn = await fetchPgnFromUrl(url)
+      const pgn = await fetchLichessGamesPgn(url, proxyUrl)
       setProgress({ phase: 'fetch', current: 1, total: 1 })
       await runImportFromText(pgn, url, username)
     } catch (e) {
       captureException('import.fetch', e, { extra: { url } })
-      setLog('Could not fetch games from Lichess.')
+      const detail = e instanceof Error ? e.message : String(e)
+      setLog(`Could not fetch games from Lichess.\n${detail}`)
       setBusy(false)
       setProgress(null)
     }

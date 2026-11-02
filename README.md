@@ -22,7 +22,7 @@ npm run preview
 
 1. Under **Import**, enter your Lichess username, max games, and blunder threshold.
 2. Keep **evals** and **analysed** enabled (required for blunder and mate detection).
-3. Click **Fetch and import**. The app calls Lichess via the dev proxy at `/lichess` (see `vite.config.ts`).
+3. Click **Fetch and import**. The app calls `https://lichess.org/api/...` from the browser (CORS). In dev, if that fails, it retries via the `/lichess` proxy in `vite.config.ts` (adds the User-Agent Lichess requires).
 
 ## Cloud agent workflow
 
