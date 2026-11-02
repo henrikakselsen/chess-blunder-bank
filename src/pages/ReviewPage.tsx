@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import type { PieceDropHandlerArgs } from 'react-chessboard'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
@@ -13,6 +13,9 @@ import {
   setMistakeTags,
 } from '../db/tags'
 import type { MistakeRow } from '../db/schema'
+import { analyzeReviewMove } from '../lib/engine/reviewMoveAnalysis'
+import { useStockfish } from '../lib/engine/useStockfish'
+import { loadImportPreferences } from '../lib/importPreferences'
 import { lichessAnalysisUrl } from '../lib/lichessUrl'
 import { shuffleInPlace } from '../lib/shuffle'
 
@@ -32,6 +35,11 @@ export function ReviewPage() {
 }
 
 function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
+  const blunderThresholdPawns = useMemo(
+    () => loadImportPreferences().evalThresholdPawns,
+    [],
+  )
+
   const queue = useMemo(() => {
     const list = [...mistakes]
     const ids = list.map((m) => m.id!).filter((n): n is number => n != null)
@@ -147,7 +155,12 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
         Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, Esc = blur field.
       </p>
       <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
-        <ReviewBoard key={current.id} fenBefore={current.fenBefore} />
+        <ReviewBoard
+          key={current.id}
+          fenBefore={current.fenBefore}
+          blunderSan={current.moveSan}
+          blunderThresholdPawns={blunderThresholdPawns}
+        />
         <div className="flex flex-col gap-4">
           <p>
             <strong>Eval:</strong> {current.evalBefore.toFixed(2)} → {current.evalAfter.toFixed(2)}{' '}
@@ -245,38 +258,136 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
   )
 }
 
-function ReviewBoard({ fenBefore }: { fenBefore: string }) {
+type MoveFeedback = {
+  text: string
+  tone: 'success' | 'error' | 'warning' | 'neutral'
+}
+
+function ReviewBoard({
+  fenBefore,
+  blunderSan,
+  blunderThresholdPawns,
+}: {
+  fenBefore: string
+  blunderSan: string
+  blunderThresholdPawns: number
+}) {
+  const engineState = useStockfish()
   const [boardFen, setBoardFen] = useState(fenBefore)
+  const [feedback, setFeedback] = useState<MoveFeedback | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const analysisGenRef = useRef(0)
   const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
   const sideToMove = sideToMoveFromFen(boardFen)
 
   const resetBoard = useCallback(() => {
     setBoardFen(fenBefore)
+    setFeedback(null)
+    setAnalyzing(false)
+    analysisGenRef.current += 1
   }, [fenBefore])
 
   const onPieceDrop = useCallback(
     ({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean => {
       if (!targetSquare) return false
+      if (engineState !== 'ready') {
+        setFeedback({
+          text:
+            engineState === 'loading'
+              ? 'Stockfish is still loading — wait a moment.'
+              : 'Stockfish failed to load. Refresh the page and try again.',
+          tone: engineState === 'loading' ? 'neutral' : 'error',
+        })
+        return false
+      }
+      if (boardFen !== fenBefore) {
+        setFeedback({
+          text: 'Reset the board to try another move from the starting position.',
+          tone: 'error',
+        })
+        return false
+      }
+      if (analyzing) return false
+
       const chess = new Chess(boardFen)
+      let move
       try {
-        const move = chess.move({
+        move = chess.move({
           from: sourceSquare,
           to: targetSquare,
           promotion: 'q',
         })
-        if (!move) return false
       } catch {
+        setFeedback({ text: 'Illegal move — try again.', tone: 'error' })
         return false
       }
-      setBoardFen(chess.fen())
-      return true
+      if (!move) {
+        setFeedback({ text: 'Illegal move — try again.', tone: 'error' })
+        return false
+      }
+
+      const gen = ++analysisGenRef.current
+      setAnalyzing(true)
+      setFeedback({ text: 'Analyzing with Stockfish…', tone: 'neutral' })
+
+      void analyzeReviewMove({
+        fenBefore,
+        from: sourceSquare,
+        to: targetSquare,
+        blunderSan,
+        blunderThresholdPawns,
+      })
+        .then((verdict) => {
+          if (gen !== analysisGenRef.current) return
+          if (verdict.quality === 'game-blunder') {
+            setFeedback({ text: verdict.message, tone: 'error' })
+            return
+          }
+          setBoardFen(chess.fen())
+          setFeedback({ text: verdict.message, tone: verdict.tone })
+        })
+        .catch(() => {
+          if (gen !== analysisGenRef.current) return
+          setFeedback({
+            text: 'Analysis failed — try again or use Lichess analysis.',
+            tone: 'error',
+          })
+        })
+        .finally(() => {
+          if (gen === analysisGenRef.current) setAnalyzing(false)
+        })
+
+      return false
     },
-    [boardFen],
+    [analyzing, blunderSan, blunderThresholdPawns, boardFen, engineState, fenBefore],
   )
+
+  const feedbackClass =
+    feedback?.tone === 'success'
+      ? 'text-success font-medium'
+      : feedback?.tone === 'warning'
+        ? 'text-warning font-medium'
+        : feedback?.tone === 'error'
+          ? 'text-error font-medium'
+          : 'text-base-content/80'
 
   return (
     <div className="flex flex-col items-center gap-2">
       <SideToMoveBadge side={sideToMove} />
+      {engineState === 'loading' ? (
+        <p className="text-base-content/70 text-sm">Loading Stockfish (~1.8 MB)…</p>
+      ) : engineState === 'error' ? (
+        <p className="text-error text-sm">Stockfish could not load.</p>
+      ) : null}
+      {feedback ? (
+        <p className={`max-w-md text-center text-sm ${feedbackClass}`} role="status">
+          {feedback.text}
+        </p>
+      ) : engineState === 'ready' ? (
+        <p className="max-w-md text-center text-base-content/60 text-sm">
+          Play your move — Stockfish will rate it against the engine line.
+        </p>
+      ) : null}
       <div
         className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
         style={{ width: boardSize(), maxWidth: '100%' }}
@@ -285,7 +396,7 @@ function ReviewBoard({ fenBefore }: { fenBefore: string }) {
           options={{
             position: boardFen,
             boardOrientation: startOrientation,
-            allowDragging: true,
+            allowDragging: engineState === 'ready' && !analyzing,
             canDragPiece: ({ piece }) => {
               const chess = new Chess(boardFen)
               const turn = chess.turn() === 'w' ? 'w' : 'b'

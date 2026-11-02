@@ -14,7 +14,8 @@
   "homepage": "https://github.com/henrikakselsen/chess-blunder-bank#readme",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/copy-stockfish.mjs && tsc -b && vite build",
+    "postinstall": "node scripts/copy-stockfish.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -29,6 +30,7 @@
     "react-chessboard": "^5.10.0",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
+    "stockfish": "^19.0.0",
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {

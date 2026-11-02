@@ -34,9 +34,16 @@ A **cloud agent** can work against the same codebase in a **remote Git** repo (G
 
 **Note:** IndexedDB data in the app lives **only in the browser** you use to open the app; it is not synced via Git.
 
+## Review engine
+
+Review uses **Stockfish 19 (lite, WASM)** in a Web Worker. On first visit to Review, the browser downloads about 1.8 MB from `/stockfish/`. `npm install` copies the engine into `public/stockfish/` via `postinstall`.
+
+Play a move on the board: the app compares your line to the engine (movetime ~450 ms per search) and labels it best / good / inaccuracy / mistake / blunder using the same **blunder threshold** as on the Import page.
+
 ## Stack
 
 - Vite, React, TypeScript  
 - chess.js, @mliebelt/pgn-parser  
 - Dexie (IndexedDB)  
 - react-chessboard  
+- stockfish (WASM, GPLv3 — see `node_modules/stockfish/Copying.txt`)  
