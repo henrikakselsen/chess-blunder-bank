@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { db } from '../db'
 import type { ImportBatchRow, ImportMode } from '../db/schema'
 import { importPgnText, type ImportProgress } from '../lib/importPgn'
+import { defaultMinTimeControl } from '../lib/timeControl'
 import {
   defaultImportPreferences,
   loadImportPreferences,
@@ -62,12 +63,16 @@ export function ImportPage() {
       const r = await importPgnText(pgn, username, prefs.evalThresholdPawns, {
         mode: prefs.lastImportMode,
         importMeta: importMeta(username),
+        minTimeControl: prefs.minTimeControl2Plus1 ? defaultMinTimeControl : null,
         onProgress: setProgress,
       })
       const lines = [
         `Mode: ${importModeLabel(prefs.lastImportMode)}`,
         `Games seen: ${r.gamesSeen}`,
         `Skipped (non-standard variant): ${r.gamesSkippedVariant}`,
+        ...(prefs.minTimeControl2Plus1
+          ? [`Skipped (faster than 2+1): ${r.gamesSkippedTimeControl}`]
+          : []),
         `Skipped (not your game): ${r.gamesSkippedNotYou}`,
         `Skipped (already imported): ${r.gamesSkippedDuplicate}`,
         `New games imported: ${r.gamesImported}`,
@@ -206,6 +211,23 @@ export function ImportPage() {
             }
             disabled={busy}
           />
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-box border border-base-300 p-4">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-primary checkbox-sm mt-0.5"
+            checked={prefs.minTimeControl2Plus1}
+            onChange={(e) => updatePrefs({ minTimeControl2Plus1: e.target.checked })}
+            disabled={busy}
+          />
+          <span>
+            <span className="font-medium">Only 2+1 or slower</span>
+            <span className="text-base-content/70 block text-sm">
+              Skip bullet, 2+0, and games without a clock tag. Includes 2+1, 3+2, rapid,
+              and correspondence.
+            </span>
+          </span>
         </label>
 
         <label className="form-control w-full">

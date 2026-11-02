@@ -8,6 +8,8 @@ export interface ImportPreferences {
   lichessUsername: string
   evalThresholdPawns: number
   max: number
+  /** Only analyse games at least 2+1; faster clocks are skipped. */
+  minTimeControl2Plus1: boolean
   tags: boolean
   evals: boolean
   analysed: boolean
@@ -20,6 +22,7 @@ export const defaultImportPreferences: ImportPreferences = {
   lichessUsername: '',
   evalThresholdPawns: 3,
   max: 50,
+  minTimeControl2Plus1: true,
   tags: true,
   evals: true,
   analysed: true,
@@ -51,6 +54,10 @@ function parsePrefs(raw: string): ImportPreferences | null {
         typeof p.max === 'number' && Number.isFinite(p.max) && p.max > 0
           ? p.max
           : defaultImportPreferences.max,
+      minTimeControl2Plus1:
+        typeof p.minTimeControl2Plus1 === 'boolean'
+          ? p.minTimeControl2Plus1
+          : defaultImportPreferences.minTimeControl2Plus1,
       tags: typeof p.tags === 'boolean' ? p.tags : defaultImportPreferences.tags,
       evals: typeof p.evals === 'boolean' ? p.evals : defaultImportPreferences.evals,
       analysed:

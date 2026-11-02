@@ -13,10 +13,16 @@ import { captureException } from './errorLog'
 import { stableOfflineGameId } from './gameId'
 import { extractLichessGameId, normalizeLichessUsername } from './lichessUrl'
 import { splitPgnGames } from './splitPgn'
+import {
+  defaultMinTimeControl,
+  meetsMinTimeControl,
+  type MinTimeControl,
+} from './timeControl'
 
 export interface ImportResult {
   gamesSeen: number
   gamesSkippedVariant: number
+  gamesSkippedTimeControl: number
   gamesSkippedNotYou: number
   gamesImported: number
   gamesUpdated: number
@@ -44,6 +50,8 @@ export interface ImportMeta {
 export interface ImportPgnOptions {
   mode: ImportMode
   importMeta: ImportMeta
+  /** When set, games faster than this clock are not analysed or stored. */
+  minTimeControl?: MinTimeControl | null
   onProgress?: (progress: ImportProgress) => void
 }
 
@@ -151,10 +159,12 @@ export async function importPgnText(
   thresholdPawns: number,
   options: ImportPgnOptions,
 ): Promise<ImportResult> {
-  const { mode, importMeta, onProgress } = options
+  const { mode, importMeta, onProgress, minTimeControl = defaultMinTimeControl } =
+    options
   const result: ImportResult = {
     gamesSeen: 0,
     gamesSkippedVariant: 0,
+    gamesSkippedTimeControl: 0,
     gamesSkippedNotYou: 0,
     gamesImported: 0,
     gamesUpdated: 0,
@@ -202,6 +212,15 @@ export async function importPgnText(
     const myColor = resolveMyColor(tags, username)
     if (!myColor) {
       result.gamesSkippedNotYou += 1
+      await yieldToUi()
+      continue
+    }
+
+    if (
+      minTimeControl != null &&
+      !meetsMinTimeControl(getTag(tags, 'TimeControl'), minTimeControl)
+    ) {
+      result.gamesSkippedTimeControl += 1
       await yieldToUi()
       continue
     }
