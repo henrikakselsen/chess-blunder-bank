@@ -29,7 +29,9 @@ function stockfishAssetUrls(): { js: string; wasm: string } {
 
 function createWorker(): Worker {
   const { js, wasm } = stockfishAssetUrls()
-  const url = `${js}#${encodeURIComponent(wasm)},worker`
+  // Stockfish 19 reads the hash as "<wasm url>[,<flag>]". Any second field
+  // stops the engine from replying, so only send the wasm URL.
+  const url = `${js}#${encodeURIComponent(wasm)}`
   return new Worker(url)
 }
 
