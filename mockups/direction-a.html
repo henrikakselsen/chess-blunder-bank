@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction A — Study desk · Chess Blunder Bank mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:var(--font-body);color:var(--color-base-content);background:var(--mock-bg);line-height:1.5}
+a{color:inherit}
+h1,h2,h3,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+.muted{color:var(--muted)}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+
+/* mockup chrome (not part of the app) */
+.mock-bar{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:12px 16px;font:500 13px/1.4 var(--font-body);background:var(--mock-bar);color:var(--mock-bar-ink)}
+.mock-bar strong{font-weight:700}
+.mock-bar a{text-underline-offset:3px}
+.mock-bar .sp{flex:1}
+.mock-sec{max-width:1240px;margin:0 auto;padding:28px 16px 8px}
+.mock-cap{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:12px;color:var(--mock-ink)}
+.mock-cap h2{font:700 15px/1.3 var(--font-body);letter-spacing:.02em}
+.mock-cap p{font-size:13px;opacity:.75}
+.frame{border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.06),0 18px 40px -22px rgba(0,0,0,.45);border:1px solid var(--mock-frame)}
+.phone{width:402px;max-width:100%;margin:0 auto;border-radius:30px;border-width:6px;border-color:var(--mock-phone)}
+.mock-foot{max-width:1240px;margin:0 auto;padding:28px 16px 48px;font-size:13px;color:var(--mock-ink);opacity:.8}
+.mock-foot code{font-family:var(--font-mono);font-size:12px}
+@media (max-width:640px){
+  .mock-sec{padding:24px 0 0}
+  .mock-cap{padding:0 16px}
+  .frame{border-radius:0;border-left:0;border-right:0}
+  .phone{width:100%;border-width:0}
+}
+
+/* app */
+.screen{container-type:inline-size;container-name:screen;background:var(--app-bg);color:var(--color-base-content)}
+.main{padding:28px 32px 36px;max-width:1120px;margin:0 auto}
+@container screen (max-width:720px){.main{padding:16px 16px 28px}}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border:var(--border) solid transparent;border-radius:var(--radius-field);font-weight:600;font-size:14px;line-height:1;text-decoration:none;cursor:pointer;white-space:nowrap;background:transparent}
+.btn-sm{min-height:34px;padding:0 12px;font-size:13px}
+.btn-primary{background:var(--color-primary);color:var(--color-primary-content)}
+.btn-outline{border-color:var(--line-strong);background:var(--btn-bg)}
+.btn-ghost{color:var(--muted)}
+.btn-error{border-color:color-mix(in oklab,var(--color-error) 45%,transparent);color:var(--color-error)}
+.btn[disabled]{opacity:.45}
+.kbd{display:inline-block;min-width:22px;padding:1px 6px;border:var(--border) solid var(--line-strong);border-bottom-width:2px;border-radius:5px;font:500 11px/1.5 var(--font-mono);text-align:center;background:var(--btn-bg)}
+.link{color:var(--link);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;font-weight:500}
+.label{display:block;margin-bottom:6px;font-size:13px;font-weight:600}
+.input,.textarea,.select{width:100%;padding:9px 12px;border:var(--border) solid var(--line-strong);border-radius:var(--radius-field);background:var(--field-bg);font-size:15px}
+.textarea{min-height:104px;resize:vertical;line-height:1.5;display:block}
+.input-sm{padding:6px 10px;font-size:14px}
+
+/* board: square colours, highlight and frame are the only board options that change */
+.board{position:relative;container-type:inline-size;width:100%;aspect-ratio:1;border-radius:var(--board-radius,6px);overflow:hidden}
+.squares{display:grid;grid-template-columns:repeat(8,1fr);width:100%;height:100%}
+.sq{position:relative;aspect-ratio:1}
+.sq.l{background:var(--board-light);color:var(--board-dark)}
+.sq.d{background:var(--board-dark);color:var(--board-light)}
+.sq.hl::after{content:"";position:absolute;inset:0;background:var(--board-hl)}
+.pc{position:absolute;inset:4%;width:92%;height:92%;z-index:1}
+.rk,.fl{position:absolute;font:600 2.3cqw/1 var(--font-body);opacity:.9}
+.rk{top:4%;left:5%}
+.fl{bottom:4%;right:6%}
+.arrow{position:absolute;inset:0;width:100%;height:100%;z-index:2;color:var(--board-arrow);opacity:.85;pointer-events:none}
+
+/* side to move */
+.stm{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 8px;border-radius:var(--radius-selector);font-size:13px;font-weight:600;border:var(--border) solid var(--line-strong)}
+.stm i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--stm-ring)}
+.stm.white{background:#fff;color:#1a1a1a}
+.stm.white i{background:#fff}
+.stm.black{background:#1d1f24;color:#fff;border-color:#1d1f24}
+.stm.black i{background:#1d1f24;border-color:#fff}
+
+/* stockfish feedback (role=status) */
+.fb{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius-field);font-size:14px;line-height:1.45;border:var(--border) solid var(--line);border-left:3px solid var(--tone);background:color-mix(in oklab,var(--tone) 7%,var(--color-base-100))}
+.fb b{color:var(--tone);font-weight:700;white-space:nowrap}
+.fb.neutral{--tone:var(--muted-solid)}
+.fb.success{--tone:var(--color-success)}
+.fb.warning{--tone:var(--color-warning)}
+.fb.error{--tone:var(--color-error)}
+.engine{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+.engine i{width:8px;height:8px;border-radius:50%;background:var(--color-success)}
+
+.tag{display:inline-flex;align-items:center;gap:7px;padding:6px 11px 6px 9px;border:var(--border) solid var(--line-strong);border-radius:var(--radius-selector);font-size:13.5px;background:var(--btn-bg);cursor:pointer}
+.tag i{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--line-strong);display:grid;place-items:center;font-style:normal;font-size:10px;line-height:1;color:transparent}
+.tag.on{border-color:var(--color-primary);background:color-mix(in oklab,var(--color-primary) 9%,var(--color-base-100))}
+.tag.on i{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-content)}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.newtag{display:flex;gap:8px;margin-top:10px;max-width:320px}
+
+:root{
+  /* daisyUI 5 theme tokens */
+  --color-base-100:#ffffff;--color-base-200:#f0f2f6;--color-base-300:#dce1ea;--color-base-content:#151c2c;
+  --color-primary:#2346c7;--color-primary-content:#ffffff;
+  --color-neutral:#1a2233;--color-neutral-content:#f3f5fa;
+  --color-success:#167a52;--color-warning:#a35f00;--color-error:#c1332a;
+  --radius-box:14px;--radius-field:9px;--radius-selector:8px;--border:1px;
+  /* app tokens */
+  --font-display:"Bricolage Grotesque",sans-serif;--font-body:"Instrument Sans",sans-serif;--font-mono:"JetBrains Mono",monospace;
+  --board-light:#e9edf3;--board-dark:#8499b6;--board-hl:rgba(255,205,60,.55);--board-arrow:#c1332a;
+  --muted:#5a6478;--muted-solid:#7a8498;--line:#dce1ea;--line-strong:#c5ccd9;--btn-bg:#fff;--field-bg:#fff;--link:#2346c7;--stm-ring:#151c2c;
+  --app-bg:#f0f2f6 radial-gradient(circle,#cfd5e0 1px,transparent 1.2px) 0 0/22px 22px;
+  --mock-bg:#e3e6ec;--mock-bar:#151c2c;--mock-bar-ink:#f3f5fa;--mock-ink:#151c2c;--mock-frame:#c5ccd9;--mock-phone:#151c2c;
+}
+.nav{display:flex;align-items:stretch;gap:24px;padding:0 32px;background:var(--color-base-100);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;padding:14px 0;font:700 19px/1 var(--font-display);letter-spacing:-.01em;white-space:nowrap}
+.brand .mark{width:30px;height:30px;border-radius:8px;background:var(--color-neutral);display:grid;place-items:center}
+.brand .mark svg{width:24px;height:24px}
+.nav nav{display:flex;margin-left:auto}
+.nav nav a{display:flex;align-items:center;gap:7px;padding:0 16px;font-size:14.5px;font-weight:600;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.nav nav a.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+.nav nav a small{font:500 11.5px/1 var(--font-mono);padding:3px 6px;border-radius:6px;background:var(--color-base-200);color:var(--muted)}
+.nav nav a.on small{background:color-mix(in oklab,var(--color-primary) 12%,#fff);color:var(--color-primary)}
+@container screen (max-width:720px){
+  .nav{flex-direction:column;gap:0;padding:0 16px}
+  .brand{padding:12px 0 6px;font-size:17px}
+  .nav nav{margin:0 -16px;display:grid;grid-template-columns:repeat(4,1fr)}
+  .nav nav a{justify-content:center;padding:10px 0;font-size:14px}
+  .nav nav a small{display:none}
+}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 24px;margin-bottom:20px}
+.head h1{font:700 34px/1.05 var(--font-display);letter-spacing:-.02em}
+.head .lead{max-width:60ch;margin-top:8px;color:var(--muted);font-size:15px}
+.prog{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted)}
+.prog b{font:700 15px/1 var(--font-mono);color:var(--color-base-content)}
+.prog .bar{width:160px;height:6px;border-radius:3px;background:var(--color-base-300);overflow:hidden}
+.prog .bar i{display:block;height:100%;width:11%;background:var(--color-primary)}
+.review{display:grid;grid-template-columns:minmax(0,520px) minmax(0,1fr);gap:32px;align-items:start}
+.boardcol{display:flex;flex-direction:column;gap:12px}
+.boardtop{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.boardwrap{padding:10px;border-radius:var(--radius-box);background:var(--color-base-100);border:1px solid var(--line);box-shadow:0 10px 30px -18px rgba(21,28,44,.4)}
+.boardfoot{display:flex;gap:10px;align-items:flex-start}
+.boardfoot .fb{flex:1}
+.panel{display:flex;flex-direction:column;gap:22px;padding:24px;border-radius:var(--radius-box);background:var(--color-base-100);border:1px solid var(--line)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:8px 28px;align-items:start}
+.facts .k{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.move{font:700 38px/1 var(--font-mono);letter-spacing:-.02em;color:var(--color-error)}
+.sub{margin-top:8px;font-size:13px;color:var(--muted)}
+.eval{font:700 24px/1.1 var(--font-mono);display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.eval .to{color:var(--muted);font-weight:500}
+.eval .neg{color:var(--color-error)}
+.delta{font:600 12.5px/1 var(--font-mono);padding:5px 8px;border-radius:6px;background:color-mix(in oklab,var(--color-error) 10%,#fff);color:var(--color-error)}
+.bars{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;align-items:center;margin-top:12px;font-size:12px;color:var(--muted)}
+.ebar{height:8px;border-radius:4px;background:var(--color-neutral);overflow:hidden;border:1px solid var(--color-neutral)}
+.ebar i{display:block;height:100%;background:#fff}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.actions .btn-primary{margin-left:auto}
+.field h3,.tagsec h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;padding-top:18px;border-top:1px solid var(--line);font-size:14px}
+.foot .btn-error{margin-left:auto}
+.keys{margin-top:18px;font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+@container screen (max-width:860px){
+  .review{grid-template-columns:1fr;gap:16px}
+  .boardcol{max-width:560px;width:100%;margin:0 auto}
+}
+@container screen (max-width:720px){
+  .head{margin-bottom:14px;align-items:center}
+  .head h1{font-size:26px}
+  .prog .bar{width:72px}
+  .boardwrap{padding:0;border:0;box-shadow:none;background:none}
+  .boardfoot{flex-direction:column;align-items:stretch}
+  .boardfoot .btn{align-self:flex-start}
+  .panel{padding:16px;gap:18px}
+  .facts{grid-template-columns:1fr 1fr;gap:8px 16px}
+  .move{font-size:30px}
+  .eval{font-size:19px}
+  .actions{display:grid;grid-template-columns:1fr 1fr}
+  .actions .btn-primary{grid-column:1/-1;grid-row:1;margin:0;min-height:46px}
+  .newtag{max-width:none}
+  .foot .btn-error{margin-left:0}
+  .keys{display:none}
+}
+/* import + list */
+.cols{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:32px;align-items:start}
+.form{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.cols>*{min-width:0}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-field);background:var(--color-base-100)}
+.opt + .opt{margin-top:-1px;border-top-left-radius:0;border-top-right-radius:0}
+.opt:has(+ .opt){border-bottom-left-radius:0;border-bottom-right-radius:0}
+.opt.on{background:color-mix(in oklab,var(--color-primary) 6%,#fff)}
+.opt b{display:block;font-weight:600;font-size:14.5px}
+.opt span span{display:block;font-size:13px;color:var(--muted)}
+.chk,.rad{flex:none;width:18px;height:18px;margin-top:2px;border:1.5px solid var(--line-strong);background:#fff;display:grid;place-items:center;font-size:11px;color:transparent}
+.chk{border-radius:5px}.rad{border-radius:50%}
+.chk.on{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.rad.on{border-color:var(--color-primary);box-shadow:inset 0 0 0 4px var(--color-primary)}
+fieldset{border:0;padding:0;margin:0;min-width:0}
+legend{padding:0;margin-bottom:8px;font-size:13px;font-weight:600}
+.api{display:flex;flex-wrap:wrap;gap:8px}
+.api .tag{font-family:var(--font-mono);font-size:12.5px}
+.card{padding:20px;border-radius:var(--radius-box);background:var(--color-base-100);border:1px solid var(--line)}
+.card h2{font:700 19px/1.2 var(--font-display);margin-bottom:12px}
+.progress{height:8px;border-radius:4px;background:var(--color-base-300);overflow:hidden}
+.progress i{display:block;height:100%;width:68%;background:var(--color-primary)}
+.tablewrap{overflow-x:auto;border-radius:var(--radius-box);border:1px solid var(--line);background:var(--color-base-100)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--font-mono);font-size:13px}
+td .mv{font:700 13.5px/1 var(--font-mono)}
+.pill{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600}
+.pill.yes{background:color-mix(in oklab,var(--color-success) 12%,#fff);color:var(--color-success)}
+.pill.no{background:var(--color-base-200);color:var(--muted)}
+.minitags{display:flex;gap:6px}
+.minitags span{font-size:12px;padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--color-base-300);gap:2px}
+.seg a{padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;color:var(--muted)}
+.seg a.on{background:#fff;color:var(--color-base-content);box-shadow:0 1px 2px rgba(21,28,44,.15)}
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:16px}
+.filters label{display:flex;align-items:center;gap:8px;font-size:14px}
+.filters .select{width:auto;min-width:170px;padding:7px 10px;font-size:14px}
+.filters .count{margin-left:auto;font-size:13px;color:var(--muted)}
+@container screen (max-width:860px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="wP" viewBox="0 0 45 45"><path d="m 22.5,9 c -2.21,0 -4,1.79 -4,4 0,0.89 0.29,1.71 0.78,2.38 C 17.33,16.5 16,18.59 16,21 c 0,2.03 0.94,3.84 2.41,5.03 C 15.41,27.09 11,31.58 11,39.5 H 34 C 34,31.58 29.59,27.09 26.59,26.03 28.06,24.84 29,23.03 29,21 29,18.59 27.67,16.5 25.72,15.38 26.21,14.71 26.5,13.89 26.5,13 c 0,-2.21 -1.79,-4 -4,-4 z" style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"></path></symbol><symbol id="wR" viewBox="0 0 45 45"><g style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 9,39 L 36,39 L 36,36 L 9,36 L 9,39 z " style="stroke-linecap:butt"></path><path d="M 12,36 L 12,32 L 33,32 L 33,36 L 12,36 z " style="stroke-linecap:butt"></path><path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14" style="stroke-linecap:butt"></path><path d="M 34,14 L 31,17 L 14,17 L 11,14"></path><path d="M 31,17 L 31,29.5 L 14,29.5 L 14,17" style="stroke-linecap:butt;stroke-linejoin:miter"></path><path d="M 31,29.5 L 32.5,32 L 12.5,32 L 14,29.5"></path><path d="M 11,14 L 34,14" style="fill:none;stroke:#000000;stroke-linejoin:miter"></path></g></symbol><symbol id="wN" viewBox="0 0 45 45"><g style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" style="fill:#ffffff;stroke:#000000"></path><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" style="fill:#ffffff;stroke:#000000"></path><path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" style="fill:#000000;stroke:#000000"></path><path d="M 15 15.5 A 0.5 1.5 0 1 1  14,15.5 A 0.5 1.5 0 1 1  15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" style="fill:#000000;stroke:#000000"></path></g></symbol><symbol id="wB" viewBox="0 0 45 45"><g style="opacity:1;fill:none;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><g style="fill:#ffffff;stroke:#000000;stroke-linecap:butt"><path d="M 9,36 C 12.39,35.03 19.11,36.43 22.5,34 C 25.89,36.43 32.61,35.03 36,36 C 36,36 37.65,36.54 39,38 C 38.32,38.97 37.35,38.99 36,38.5 C 32.61,37.53 25.89,38.96 22.5,37.5 C 19.11,38.96 12.39,37.53 9,38.5 C 7.65,38.99 6.68,38.97 6,38 C 7.35,36.54 9,36 9,36 z"></path><path d="M 15,32 C 17.5,34.5 27.5,34.5 30,32 C 30.5,30.5 30,30 30,30 C 30,27.5 27.5,26 27.5,26 C 33,24.5 33.5,14.5 22.5,10.5 C 11.5,14.5 12,24.5 17.5,26 C 17.5,26 15,27.5 15,30 C 15,30 14.5,30.5 15,32 z"></path><path d="M 25 8 A 2.5 2.5 0 1 1  20,8 A 2.5 2.5 0 1 1  25 8 z"></path></g><path d="M 17.5,26 L 27.5,26 M 15,30 L 30,30 M 22.5,15.5 L 22.5,20.5 M 20,18 L 25,18" style="fill:none;stroke:#000000;stroke-linejoin:miter"></path></g></symbol><symbol id="wQ" viewBox="0 0 45 45"><g style="fill:#ffffff;stroke:#000000;stroke-width:1.5;stroke-linejoin:round"><path d="M 9,26 C 17.5,24.5 30,24.5 36,26 L 38.5,13.5 L 31,25 L 30.7,10.9 L 25.5,24.5 L 22.5,10 L 19.5,24.5 L 14.3,10.9 L 14,25 L 6.5,13.5 L 9,26 z"></path><path d="M 9,26 C 9,28 10.5,28 11.5,30 C 12.5,31.5 12.5,31 12,33.5 C 10.5,34.5 11,36 11,36 C 9.5,37.5 11,38.5 11,38.5 C 17.5,39.5 27.5,39.5 34,38.5 C 34,38.5 35.5,37.5 34,36 C 34,36 34.5,34.5 33,33.5 C 32.5,31 32.5,31.5 33.5,30 C 34.5,28 36,28 36,26 C 27.5,24.5 17.5,24.5 9,26 z"></path><path d="M 11.5,30 C 15,29 30,29 33.5,30" style="fill:none"></path><path d="M 12,33.5 C 18,32.5 27,32.5 33,33.5" style="fill:none"></path><circle cx="6" cy="12" r="2"></circle><circle cx="14" cy="9" r="2"></circle><circle cx="22.5" cy="8" r="2"></circle><circle cx="31" cy="9" r="2"></circle><circle cx="39" cy="12" r="2"></circle></g></symbol><symbol id="wK" viewBox="0 0 45 45"><g style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 22.5,11.63 L 22.5,6" style="fill:none;stroke:#000000;stroke-linejoin:miter"></path><path d="M 20,8 L 25,8" style="fill:none;stroke:#000000;stroke-linejoin:miter"></path><path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" style="fill:#ffffff;stroke:#000000;stroke-linecap:butt;stroke-linejoin:miter"></path><path d="M 12.5,37 C 18,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 20,16 10.5,13 6.5,19.5 C 3.5,25.5 12.5,30 12.5,30 L 12.5,37" style="fill:#ffffff;stroke:#000000"></path><path d="M 12.5,30 C 18,27 27,27 32.5,30" style="fill:none;stroke:#000000"></path><path d="M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5" style="fill:none;stroke:#000000"></path><path d="M 12.5,37 C 18,34 27,34 32.5,37" style="fill:none;stroke:#000000"></path></g></symbol><symbol id="bP" viewBox="0 0 45 45"><path d="m 22.5,9 c -2.21,0 -4,1.79 -4,4 0,0.89 0.29,1.71 0.78,2.38 C 17.33,16.5 16,18.59 16,21 c 0,2.03 0.94,3.84 2.41,5.03 C 15.41,27.09 11,31.58 11,39.5 H 34 C 34,31.58 29.59,27.09 26.59,26.03 28.06,24.84 29,23.03 29,21 29,18.59 27.67,16.5 25.72,15.38 26.21,14.71 26.5,13.89 26.5,13 c 0,-2.21 -1.79,-4 -4,-4 z" style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"></path></symbol><symbol id="bR" viewBox="0 0 45 45"><g style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 9,39 L 36,39 L 36,36 L 9,36 L 9,39 z " style="stroke-linecap:butt"></path><path d="M 12.5,32 L 14,29.5 L 31,29.5 L 32.5,32 L 12.5,32 z " style="stroke-linecap:butt"></path><path d="M 12,36 L 12,32 L 33,32 L 33,36 L 12,36 z " style="stroke-linecap:butt"></path><path d="M 14,29.5 L 14,16.5 L 31,16.5 L 31,29.5 L 14,29.5 z " style="stroke-linecap:butt;stroke-linejoin:miter"></path><path d="M 14,16.5 L 11,14 L 34,14 L 31,16.5 L 14,16.5 z " style="stroke-linecap:butt"></path><path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14 L 11,14 z " style="stroke-linecap:butt"></path><path d="M 12,35.5 L 33,35.5 L 33,35.5" style="fill:none;stroke:#ffffff;stroke-width:1;stroke-linejoin:miter"></path><path d="M 13,31.5 L 32,31.5" style="fill:none;stroke:#ffffff;stroke-width:1;stroke-linejoin:miter"></path><path d="M 14,29.5 L 31,29.5" style="fill:none;stroke:#ffffff;stroke-width:1;stroke-linejoin:miter"></path><path d="M 14,16.5 L 31,16.5" style="fill:none;stroke:#ffffff;stroke-width:1;stroke-linejoin:miter"></path><path d="M 11,14 L 34,14" style="fill:none;stroke:#ffffff;stroke-width:1;stroke-linejoin:miter"></path></g></symbol><symbol id="bN" viewBox="0 0 45 45"><g style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" style="fill:#000000;stroke:#000000"></path><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" style="fill:#000000;stroke:#000000"></path><path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" style="fill:#ffffff;stroke:#ffffff"></path><path d="M 15 15.5 A 0.5 1.5 0 1 1  14,15.5 A 0.5 1.5 0 1 1  15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" style="fill:#ffffff;stroke:#ffffff"></path><path d="M 24.55,10.4 L 24.1,11.85 L 24.6,12 C 27.75,13 30.25,14.49 32.5,18.75 C 34.75,23.01 35.75,29.06 35.25,39 L 35.2,39.5 L 37.45,39.5 L 37.5,39 C 38,28.94 36.62,22.15 34.25,17.66 C 31.88,13.17 28.46,11.02 25.06,10.5 L 24.55,10.4 z " style="fill:#ffffff;stroke:none"></path></g></symbol><symbol id="bB" viewBox="0 0 45 45"><g style="opacity:1;fill:none;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><g style="fill:#000000;stroke:#000000;stroke-linecap:butt"><path d="M 9,36 C 12.39,35.03 19.11,36.43 22.5,34 C 25.89,36.43 32.61,35.03 36,36 C 36,36 37.65,36.54 39,38 C 38.32,38.97 37.35,38.99 36,38.5 C 32.61,37.53 25.89,38.96 22.5,37.5 C 19.11,38.96 12.39,37.53 9,38.5 C 7.65,38.99 6.68,38.97 6,38 C 7.35,36.54 9,36 9,36 z"></path><path d="M 15,32 C 17.5,34.5 27.5,34.5 30,32 C 30.5,30.5 30,30 30,30 C 30,27.5 27.5,26 27.5,26 C 33,24.5 33.5,14.5 22.5,10.5 C 11.5,14.5 12,24.5 17.5,26 C 17.5,26 15,27.5 15,30 C 15,30 14.5,30.5 15,32 z"></path><path d="M 25 8 A 2.5 2.5 0 1 1  20,8 A 2.5 2.5 0 1 1  25 8 z"></path></g><path d="M 17.5,26 L 27.5,26 M 15,30 L 30,30 M 22.5,15.5 L 22.5,20.5 M 20,18 L 25,18" style="fill:none;stroke:#ffffff;stroke-linejoin:miter"></path></g></symbol><symbol id="bQ" viewBox="0 0 45 45"><g style="fill:#000000;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M 9,26 C 17.5,24.5 30,24.5 36,26 L 38.5,13.5 L 31,25 L 30.7,10.9 L 25.5,24.5 L 22.5,10 L 19.5,24.5 L 14.3,10.9 L 14,25 L 6.5,13.5 L 9,26 z" style="stroke-linecap:butt;fill:#000000"></path><path d="m 9,26 c 0,2 1.5,2 2.5,4 1,1.5 1,1 0.5,3.5 -1.5,1 -1,2.5 -1,2.5 -1.5,1.5 0,2.5 0,2.5 6.5,1 16.5,1 23,0 0,0 1.5,-1 0,-2.5 0,0 0.5,-1.5 -1,-2.5 -0.5,-2.5 -0.5,-2 0.5,-3.5 1,-2 2.5,-2 2.5,-4 -8.5,-1.5 -18.5,-1.5 -27,0 z"></path><path d="M 11.5,30 C 15,29 30,29 33.5,30"></path><path d="m 12,33.5 c 6,-1 15,-1 21,0"></path><circle cx="6" cy="12" r="2"></circle><circle cx="14" cy="9" r="2"></circle><circle cx="22.5" cy="8" r="2"></circle><circle cx="31" cy="9" r="2"></circle><circle cx="39" cy="12" r="2"></circle><path d="M 11,38.5 A 35,35 1 0 0 34,38.5" style="fill:none;stroke:#000000;stroke-linecap:butt"></path><g style="fill:none;stroke:#ffffff"><path d="M 11,29 A 35,35 1 0 1 34,29"></path><path d="M 12.5,31.5 L 32.5,31.5"></path><path d="M 11.5,34.5 A 35,35 1 0 0 33.5,34.5"></path><path d="M 10.5,37.5 A 35,35 1 0 0 34.5,37.5"></path></g></g></symbol><symbol id="bK" viewBox="0 0 45 45"><g style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 22.5,11.63 L 22.5,6" style="fill:none;stroke:#000000;stroke-linejoin:miter" id="path6570"></path><path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" style="fill:#000000;fill-opacity:1;stroke-linecap:butt;stroke-linejoin:miter"></path><path d="M 12.5,37 C 18,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 20,16 10.5,13 6.5,19.5 C 3.5,25.5 12.5,30 12.5,30 L 12.5,37" style="fill:#000000;stroke:#000000"></path><path d="M 20,8 L 25,8" style="fill:none;stroke:#000000;stroke-linejoin:miter"></path><path d="M 32,29.5 C 32,29.5 40.5,25.5 38.03,19.85 C 34.15,14 25,18 22.5,24.5 L 22.5,26.6 L 22.5,24.5 C 20,18 10.85,14 6.97,19.85 C 4.5,25.5 13,29.5 13,29.5" style="fill:none;stroke:#ffffff"></path><path d="M 12.5,30 C 18,27 27,27 32.5,30 M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5 M 12.5,37 C 18,34 27,34 32.5,37" style="fill:none;stroke:#ffffff"></path></g></symbol></defs></svg>
+<div class="mock-bar"><a href="index.html">&larr; All directions</a><strong>Direction A — Study desk (recommended)</strong><span class="sp"></span><a href="#review">Review</a><a href="#mobile">Mobile</a><a href="#import">Import</a><a href="#list">List</a></div><section class="mock-sec" id="review"><div class="mock-cap"><h2>Review page</h2><p>State: the user played Be2 on the board. Stockfish gives a success verdict.</p></div><div class="frame"><div class="screen"><header class="nav"><div class="brand"><span class="mark"><svg viewBox="0 0 45 45"><use href="#wN"/></svg></span>Chess Blunder Bank</div><nav aria-label="Main"><a href="#" class="">Import</a><a href="#" class="">List<small>33</small></a><a href="#" class="on">Review<small>27</small></a><a href="#" class="">Mates<small>6</small></a></nav></header>
+<main class="main">
+  <div class="head">
+    <h1>Review</h1>
+    <div class="prog"><span><b>3 / 27</b></span><span class="bar"><i></i></span><span>unreviewed</span></div>
+  </div>
+  <div class="review">
+    <div class="boardcol">
+      <div class="boardtop"><span class="stm black"><i></i>Black to move</span><span class="engine"><i></i>Stockfish ready</span></div>
+      <div class="boardwrap"><div class="board" role="img" aria-label="Chess position"><div class="squares"><div class="sq l"><span class="rk">8</span><svg class="pc" viewBox="0 0 45 45"><use href="#bR"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bQ"/></svg></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bR"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bK"/></svg></div><div class="sq d"></div><div class="sq d"><span class="rk">7</span><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bB"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq l"><span class="rk">6</span></div><div class="sq d"></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bN"/></svg></div><div class="sq d"></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bB"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bN"/></svg></div><div class="sq l"></div><div class="sq d"></div><div class="sq d"><span class="rk">5</span></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq l"><span class="rk">4</span></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wB"/></svg></div><div class="sq l"></div><div class="sq d"></div><div class="sq d"><span class="rk">3</span></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#wQ"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wN"/></svg></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#wN"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq l"><span class="rk">2</span><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"></div><div class="sq d"></div><div class="sq l hl"><svg class="pc" viewBox="0 0 45 45"><use href="#wB"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq d"><span class="rk">1</span><span class="fl">a</span><svg class="pc" viewBox="0 0 45 45"><use href="#wR"/></svg></div><div class="sq l"><span class="fl">b</span></div><div class="sq d"><span class="fl">c</span></div><div class="sq l"><span class="fl">d</span></div><div class="sq d"><span class="fl">e</span><svg class="pc" viewBox="0 0 45 45"><use href="#wK"/></svg></div><div class="sq l hl"><span class="fl">f</span></div><div class="sq d"><span class="fl">g</span></div><div class="sq l"><span class="fl">h</span><svg class="pc" viewBox="0 0 45 45"><use href="#wR"/></svg></div></div></div></div>
+      <div class="boardfoot"><p class="fb success" role="status"><span>Best move (Be2). Engine loss ≈ 0.00 pawns.</span></p><button class="btn btn-outline btn-sm" type="button">Reset board</button></div>
+    </div>
+    <div class="panel">
+      <div class="facts">
+        <div><div class="k">Your move</div><div class="move">Qxb7??</div><div class="sub">Move 10, White</div></div>
+        <div><div class="k">Eval, White's perspective</div>
+          <div class="eval"><span>+0.80</span><span class="to">&rarr;</span><span class="neg">&minus;2.40</span><span class="delta">&Delta; &minus;3.20</span></div>
+          <div class="bars"><span>Before</span><span class="ebar"><i style="width:57%"></i></span><span>After</span><span class="ebar"><i style="width:29%"></i></span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline" type="button">&larr; Previous</button>
+        <button class="btn btn-outline" type="button">Next &rarr;</button>
+        <button class="btn btn-primary" type="button">&#10003; Mark as reviewed</button>
+      </div>
+      <div class="field"><h3>Note</h3><textarea class="textarea" rows="4">Took the b7 pawn before I castled. After ...Nb4 the queen is in trouble and Nc2+ is a threat. Finish development first: Be2, then O-O.</textarea></div>
+      <div class="tagsec"><h3>Tags</h3><div class="tags"><label class="tag"><i></i>hanging piece</label><label class="tag on"><i>&#10003;</i>greedy pawn grab</label><label class="tag"><i></i>back rank</label><label class="tag on"><i>&#10003;</i>development</label><label class="tag"><i></i>time trouble</label><label class="tag"><i></i>missed fork</label></div>
+        <div class="newtag"><input class="input input-sm" placeholder="New tag"><button class="btn btn-outline btn-sm" type="button">Add</button></div>
+      </div>
+      <div class="foot">
+        <a class="link" href="#">Open analysis on Lichess &#8599;</a>
+        <a class="link" href="#">Open game &#8599;</a>
+        <button class="btn btn-error btn-sm" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+  <p class="keys"><span><span class="kbd">&larr;</span> <span class="kbd">p</span> previous</span><span><span class="kbd">&rarr;</span> <span class="kbd">n</span> next</span><span><span class="kbd">r</span> <span class="kbd">Enter</span> mark reviewed</span><span><span class="kbd">Esc</span> blur field</span></p>
+</main></div></div></section><section class="mock-sec" id="mobile"><div class="mock-cap"><h2>Review page, phone width (390px)</h2><p>State: start position. The red arrow shows the game blunder.</p></div><div class="frame phone"><div class="screen"><header class="nav"><div class="brand"><span class="mark"><svg viewBox="0 0 45 45"><use href="#wN"/></svg></span>Chess Blunder Bank</div><nav aria-label="Main"><a href="#" class="">Import</a><a href="#" class="">List<small>33</small></a><a href="#" class="on">Review<small>27</small></a><a href="#" class="">Mates<small>6</small></a></nav></header>
+<main class="main">
+  <div class="head">
+    <h1>Review</h1>
+    <div class="prog"><span><b>3 / 27</b></span><span class="bar"><i></i></span><span>unreviewed</span></div>
+  </div>
+  <div class="review">
+    <div class="boardcol">
+      <div class="boardtop"><span class="stm white"><i></i>White to move</span><span class="engine"><i></i>Stockfish ready</span></div>
+      <div class="boardwrap"><div class="board" role="img" aria-label="Chess position"><div class="squares"><div class="sq l"><span class="rk">8</span><svg class="pc" viewBox="0 0 45 45"><use href="#bR"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bQ"/></svg></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bR"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bK"/></svg></div><div class="sq d"></div><div class="sq d"><span class="rk">7</span><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bB"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq l"><span class="rk">6</span></div><div class="sq d"></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bN"/></svg></div><div class="sq d"></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bB"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#bN"/></svg></div><div class="sq l"></div><div class="sq d"></div><div class="sq d"><span class="rk">5</span></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#bP"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq l"><span class="rk">4</span></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wB"/></svg></div><div class="sq l"></div><div class="sq d"></div><div class="sq d"><span class="rk">3</span></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#wQ"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wN"/></svg></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#wN"/></svg></div><div class="sq d"></div><div class="sq l"></div><div class="sq l"><span class="rk">2</span><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq l"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq d"><svg class="pc" viewBox="0 0 45 45"><use href="#wP"/></svg></div><div class="sq d"><span class="rk">1</span><span class="fl">a</span><svg class="pc" viewBox="0 0 45 45"><use href="#wR"/></svg></div><div class="sq l"><span class="fl">b</span></div><div class="sq d"><span class="fl">c</span></div><div class="sq l"><span class="fl">d</span></div><div class="sq d"><span class="fl">e</span><svg class="pc" viewBox="0 0 45 45"><use href="#wK"/></svg></div><div class="sq l"><span class="fl">f</span><svg class="pc" viewBox="0 0 45 45"><use href="#wB"/></svg></div><div class="sq d"><span class="fl">g</span></div><div class="sq l"><span class="fl">h</span><svg class="pc" viewBox="0 0 45 45"><use href="#wR"/></svg></div></div><svg class="arrow" viewBox="0 0 100 100" aria-hidden="true"><defs><marker id="ah" markerWidth="4" markerHeight="4" refX="2.2" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="currentColor"/></marker></defs><line x1="18.75" y1="65.75" x2="18.75" y2="23.75" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" marker-end="url(#ah)"/></svg></div></div>
+      <div class="boardfoot"><p class="fb neutral" role="status"><span>Play your move — Stockfish will rate it against the engine line.</span></p><button class="btn btn-outline btn-sm" type="button">Reset board</button></div>
+    </div>
+    <div class="panel">
+      <div class="facts">
+        <div><div class="k">Your move</div><div class="move">Qxb7??</div><div class="sub">Move 10, White</div></div>
+        <div><div class="k">Eval, White's perspective</div>
+          <div class="eval"><span>+0.80</span><span class="to">&rarr;</span><span class="neg">&minus;2.40</span><span class="delta">&Delta; &minus;3.20</span></div>
+          <div class="bars"><span>Before</span><span class="ebar"><i style="width:57%"></i></span><span>After</span><span class="ebar"><i style="width:29%"></i></span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline" type="button">&larr; Previous</button>
+        <button class="btn btn-outline" type="button">Next &rarr;</button>
+        <button class="btn btn-primary" type="button">&#10003; Mark as reviewed</button>
+      </div>
+      <div class="field"><h3>Note</h3><textarea class="textarea" rows="4">Took the b7 pawn before I castled. After ...Nb4 the queen is in trouble and Nc2+ is a threat. Finish development first: Be2, then O-O.</textarea></div>
+      <div class="tagsec"><h3>Tags</h3><div class="tags"><label class="tag"><i></i>hanging piece</label><label class="tag on"><i>&#10003;</i>greedy pawn grab</label><label class="tag"><i></i>back rank</label><label class="tag on"><i>&#10003;</i>development</label><label class="tag"><i></i>time trouble</label><label class="tag"><i></i>missed fork</label></div>
+        <div class="newtag"><input class="input input-sm" placeholder="New tag"><button class="btn btn-outline btn-sm" type="button">Add</button></div>
+      </div>
+      <div class="foot">
+        <a class="link" href="#">Open analysis on Lichess &#8599;</a>
+        <a class="link" href="#">Open game &#8599;</a>
+        <button class="btn btn-error btn-sm" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+  <p class="keys"><span><span class="kbd">&larr;</span> <span class="kbd">p</span> previous</span><span><span class="kbd">&rarr;</span> <span class="kbd">n</span> next</span><span><span class="kbd">r</span> <span class="kbd">Enter</span> mark reviewed</span><span><span class="kbd">Esc</span> blur field</span></p>
+</main></div></div></section><section class="mock-sec" id="import"><div class="mock-cap"><h2>Import page</h2><p>The form is on the left. Progress and history are on the right.</p></div><div class="frame"><div class="screen"><header class="nav"><div class="brand"><span class="mark"><svg viewBox="0 0 45 45"><use href="#wN"/></svg></span>Chess Blunder Bank</div><nav aria-label="Main"><a href="#" class="on">Import</a><a href="#" class="">List<small>33</small></a><a href="#" class="">Review<small>27</small></a><a href="#" class="">Mates<small>6</small></a></nav></header>
+<main class="main">
+  <div class="head"><div><h1>Import</h1>
+    <p class="lead">Fetch analysed games from Lichess. Each import scans for blunders and missed mates in one pass. Values are remembered in this browser.</p></div></div>
+  <div class="cols">
+    <form class="form" onsubmit="return false">
+      <div><label class="label">Lichess username</label><input class="input" value="henrikakselsen"></div>
+      <div class="two">
+        <div><label class="label">Max games</label><input class="input mono" value="50"></div>
+        <div><label class="label">Blunder threshold (pawns)</label><input class="input mono" value="2.0"></div>
+      </div>
+      <label class="opt on"><i class="chk on">&#10003;</i><span><b>Only 2+1 or slower</b><span>Skip bullet, 2+0, and games without a clock tag. Includes 2+1, 3+2, rapid, and correspondence.</span></span></label>
+      <fieldset><legend>Import mode</legend><label class="opt on"><i class="rad on"></i><span><b>Add to existing</b><span>Skip games already imported</span></span></label><label class="opt"><i class="rad"></i><span><b>Update duplicates</b><span>Re-scan games that appear in this import</span></span></label><label class="opt"><i class="rad"></i><span><b>Replace all</b><span>Delete all stored games and findings, then import</span></span></label></fieldset>
+      <fieldset><legend>Lichess API options</legend><div class="api"><label class="tag on"><i>&#10003;</i>tags</label><label class="tag on"><i>&#10003;</i>evals</label><label class="tag on"><i>&#10003;</i>analysed</label><label class="tag on"><i>&#10003;</i>clocks</label><label class="tag"><i></i>opening</label></div></fieldset>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn btn-primary" type="button" style="margin:0">Import</button>
+        <button class="btn btn-outline" type="button">Or choose a .pgn file</button>
+      </div>
+    </form>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:20px">
+      <div class="card"><h2>Import in progress</h2>
+        <div class="progress"><i></i></div>
+        <p class="sub">Processing games… 30 / 50</p>
+      </div>
+      <div><h2 style="font:700 19px/1.2 var(--font-display);margin-bottom:12px">Import history</h2>
+        <div class="tablewrap"><table><thead><tr><th>When</th><th>Mode</th><th>Games</th><th>Blunders</th><th>Mates</th></tr></thead><tbody><tr><td>24 Nov 2026, 08:12</td><td>Add</td><td class="num">14 (36 skip)</td><td class="num">9</td><td class="num">2</td></tr><tr><td>17 Nov 2026, 21:40</td><td>Add</td><td class="num">31 (19 skip)</td><td class="num">12</td><td class="num">3</td></tr><tr><td>9 Nov 2026, 19:05</td><td>Update</td><td class="num">4 + 46 upd</td><td class="num">2</td><td class="num">0</td></tr><tr><td>2 Nov 2026, 18:30</td><td>Replace all</td><td class="num">50</td><td class="num">10</td><td class="num">1</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</main></div></div></section><section class="mock-sec" id="list"><div class="mock-cap"><h2>List page</h2><p>Blunders tab with filters.</p></div><div class="frame"><div class="screen"><header class="nav"><div class="brand"><span class="mark"><svg viewBox="0 0 45 45"><use href="#wN"/></svg></span>Chess Blunder Bank</div><nav aria-label="Main"><a href="#" class="">Import</a><a href="#" class="on">List<small>33</small></a><a href="#" class="">Review<small>27</small></a><a href="#" class="">Mates<small>6</small></a></nav></header>
+<main class="main">
+  <div class="head"><h1>All positions</h1>
+    <div class="seg"><a class="on" href="#">Blunders</a><a href="#">Missed mates</a></div></div>
+  <div class="filters">
+    <label><i class="chk"></i>Unreviewed only</label>
+    <label>Tag <select class="select"><option>All tags</option><option>hanging piece</option><option>back rank</option></select></label>
+    <span class="count">8 of 33 positions</span>
+  </div>
+  <div class="tablewrap"><table><thead><tr><th>Date</th><th>Eval</th><th>Move</th><th>Reviewed</th><th>Links</th></tr></thead><tbody><tr><td class="num">24/11/2026, 08:12:31</td><td class="num">+0.80 &rarr; <span style="color:var(--color-error)">−2.40</span></td><td><span class="mv">Qxb7??</span></td><td><span class="pill no">No</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">24/11/2026, 08:12:31</td><td class="num">−0.35 &rarr; <span style="color:var(--color-error)">−4.10</span></td><td><span class="mv">Nxe5??</span></td><td><span class="pill no">No</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">24/11/2026, 08:12:30</td><td class="num">+1.90 &rarr; <span style="color:var(--color-error)">−0.60</span></td><td><span class="mv">Rd1??</span></td><td><span class="pill no">No</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">17/11/2026, 21:40:02</td><td class="num">+0.10 &rarr; <span style="color:var(--color-error)">−3.75</span></td><td><span class="mv">Bg5??</span></td><td><span class="pill yes">Yes</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">17/11/2026, 21:40:02</td><td class="num">+3.20 &rarr; <span style="color:var(--color-error)">+0.40</span></td><td><span class="mv">Kh1??</span></td><td><span class="pill yes">Yes</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">17/11/2026, 21:40:01</td><td class="num">−1.10 &rarr; <span style="color:var(--color-error)">−5.30</span></td><td><span class="mv">f4??</span></td><td><span class="pill no">No</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">09/11/2026, 19:05:44</td><td class="num">+0.55 &rarr; <span style="color:var(--color-error)">−2.05</span></td><td><span class="mv">Qd2??</span></td><td><span class="pill yes">Yes</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr><tr><td class="num">02/11/2026, 18:30:17</td><td class="num">+2.40 &rarr; <span style="color:var(--color-error)">−0.15</span></td><td><span class="mv">Rxa7??</span></td><td><span class="pill no">No</span></td><td><a class="link" href="#">Game</a> &nbsp; <a class="link" href="#">Analysis</a></td></tr></tbody></table></div>
+</main></div></div></section><p class="mock-foot">Static mockup. The pieces are the default react-chessboard SVG set. Only <code>lightSquareStyle</code>, <code>darkSquareStyle</code>, <code>squareStyles</code> and <code>arrows</code> change on the board.</p>
+</body>
+</html>
