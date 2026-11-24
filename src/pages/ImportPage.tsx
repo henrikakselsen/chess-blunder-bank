@@ -166,13 +166,14 @@ export function ImportPage() {
   }
 
   return (
-    <section className="space-y-6">
-      <h1 className="text-3xl font-bold">Import</h1>
-      <p className="max-w-prose text-base-content/80">
+    <section className="space-y-4">
+      <h1 className="font-display text-[22px] leading-none font-bold">Import</h1>
+      <p className="max-w-prose text-sm text-base-content/70">
         Fetch analysed games from Lichess. Each import scans for blunders and missed mates in one
         pass. Values are remembered in this browser.
       </p>
 
+      <div className="grid items-start gap-8 pt-2 xl:grid-cols-[minmax(0,32rem)_minmax(0,1fr)]">
       <form
         className="grid max-w-lg gap-4"
         onSubmit={(e) => {
@@ -180,12 +181,12 @@ export function ImportPage() {
           void handleFetchAndImport()
         }}
       >
-        <label className="form-control w-full">
-          <span className="label">
-            <span className="label-text">Lichess username</span>
+        <label className="grid gap-2">
+          <span className="eyebrow">
+            <span>Lichess username</span>
           </span>
           <input
-            className="input input-bordered w-full"
+            className="input w-full font-mono"
             value={prefs.lichessUsername}
             onChange={(e) => updatePrefs({ lichessUsername: e.target.value })}
             placeholder="henrikakselsen"
@@ -194,12 +195,12 @@ export function ImportPage() {
           />
         </label>
 
-        <label className="form-control w-full">
-          <span className="label">
-            <span className="label-text">Max games</span>
+        <label className="grid gap-2">
+          <span className="eyebrow">
+            <span>Max games</span>
           </span>
           <input
-            className="input input-bordered w-full"
+            className="input w-full font-mono"
             type="number"
             min={1}
             max={200}
@@ -213,7 +214,7 @@ export function ImportPage() {
           />
         </label>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-box border border-base-300 p-4">
+        <label className="flex cursor-pointer items-start gap-3 panel p-4">
           <input
             type="checkbox"
             className="checkbox checkbox-primary checkbox-sm mt-0.5"
@@ -230,12 +231,12 @@ export function ImportPage() {
           </span>
         </label>
 
-        <label className="form-control w-full">
-          <span className="label">
-            <span className="label-text">Blunder threshold (pawns)</span>
+        <label className="grid gap-2">
+          <span className="eyebrow">
+            <span>Blunder threshold (pawns)</span>
           </span>
           <input
-            className="input input-bordered w-full"
+            className="input w-full font-mono"
             type="number"
             step="0.1"
             min={0.5}
@@ -250,8 +251,8 @@ export function ImportPage() {
           />
         </label>
 
-        <fieldset className="rounded-box border border-base-300 p-4">
-          <legend className="label-text px-2 font-medium">Import mode</legend>
+        <fieldset className="panel p-4">
+          <legend className="eyebrow px-2">Import mode</legend>
           <div className="mt-2 flex flex-col gap-3">
             {IMPORT_MODE_OPTIONS.map((opt) => (
               <label key={opt.value} className="flex cursor-pointer items-start gap-3">
@@ -272,9 +273,9 @@ export function ImportPage() {
           </div>
         </fieldset>
 
-        <fieldset className="rounded-box border border-base-300 p-4">
-          <legend className="label-text px-2 font-medium">Lichess API options</legend>
-          <div className="mt-2 flex flex-col gap-2">
+        <fieldset className="panel p-4">
+          <legend className="eyebrow px-2">Lichess API options</legend>
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
             <BoolField
               label="tags"
               checked={prefs.tags}
@@ -325,17 +326,20 @@ export function ImportPage() {
         </div>
       </form>
 
-      {busy && progress ? (
-        <ImportProgressBar progress={progress} />
-      ) : null}
+      <div className="grid min-w-0 gap-5">
+        {busy && progress ? (
+          <ImportProgressBar progress={progress} />
+        ) : null}
 
-      {log ? (
-        <pre className="bg-base-300 text-base-content rounded-box whitespace-pre-wrap border border-base-100 p-4 font-mono text-sm">
-          {log}
-        </pre>
-      ) : null}
+        {log ? (
+          <pre className="border border-l-[3px] border-base-300 border-l-primary bg-base-100 p-4 font-mono text-[13px] whitespace-pre-wrap">
+            {log}
+          </pre>
+        ) : null}
 
-      <ImportHistoryTable batches={importHistory ?? []} />
+        <ImportHistoryTable batches={importHistory ?? []} />
+      </div>
+      </div>
     </section>
   )
 }
@@ -344,7 +348,7 @@ function ImportHistoryTable({ batches }: { batches: ImportBatchRow[] }) {
   if (batches.length === 0) {
     return (
       <div>
-        <h2 className="mb-2 text-xl font-semibold">Import history</h2>
+        <h2 className="eyebrow mb-3">Import history</h2>
         <p className="text-base-content/70 text-sm">No imports yet.</p>
       </div>
     )
@@ -352,8 +356,8 @@ function ImportHistoryTable({ batches }: { batches: ImportBatchRow[] }) {
 
   return (
     <div>
-      <h2 className="mb-3 text-xl font-semibold">Import history</h2>
-      <div className="overflow-x-auto rounded-box border border-base-300">
+      <h2 className="eyebrow mb-3">Import history</h2>
+      <div className="panel overflow-x-auto [&_td]:whitespace-nowrap [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-widest [&_th]:uppercase">
         <table className="table table-sm">
           <thead>
             <tr>

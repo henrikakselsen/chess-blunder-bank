@@ -3,7 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import type { PieceDropHandlerArgs } from 'react-chessboard'
+import { QueueProgress } from '../components/QueueProgress'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
+import { StatusLine } from '../components/StatusLine'
+import { boardSize, boardThemeOptions } from '../components/boardTheme'
 import { sideToMoveFromFen } from '../lib/sideToMove'
 import { db } from '../db'
 import type { MissedMateRow } from '../db/schema'
@@ -38,8 +41,8 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-3xl font-bold">Mate training</h1>
-      <p className="max-w-prose text-base-content/80">
+      <h1 className="font-display text-[22px] leading-none font-bold">Mate training</h1>
+      <p className="max-w-prose text-sm text-base-content/70">
         Positions where the engine showed mate in 1 or 2 for you, but you played something else.
         Drag the correct move on the board. Failed positions return in a repetition round.
       </p>
@@ -55,7 +58,7 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
         </FilterButton>
       </div>
       {filtered.length === 0 ? (
-        <p className="text-base-content/80">
+        <p className="text-base-content/70">
           No unreviewed missed mates
           {filter === 'all' ? '' : filter === 1 ? ' in 1' : ' in 2'} — import analysed games on
           Import.
@@ -210,7 +213,7 @@ function MatePuzzle({
   if (sessionComplete) {
     return (
       <div className="space-y-3">
-        <p className="text-success font-medium">
+        <p className="border border-l-[3px] border-base-300 border-l-success bg-base-100 px-3 py-2.5 font-mono text-[13px]">
           All positions solved this session
           {repeatRound > 0
             ? ` (including ${repeatRound} repetition round${repeatRound > 1 ? 's' : ''})`
@@ -370,54 +373,24 @@ function MatePuzzleBoard({
   const sideToMove = sideToMoveFromFen(boardFen)
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
-      <div className="flex flex-col items-center gap-2">
-        <SideToMoveBadge side={sideToMove} />
-        <div
-          className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
-          style={{ width: boardSize(), maxWidth: '100%' }}
-        >
-          <Chessboard
-            options={{
-              position: boardFen,
-              boardOrientation: current.myColor,
-              allowDragging: phase === 'play',
-              canDragPiece: ({ piece }) =>
-                phase === 'play' &&
-                piece.pieceType.startsWith(current.myColor === 'white' ? 'w' : 'b'),
-              onPieceDrop,
-            }}
-          />
-        </div>
-      </div>
-      <div className="flex flex-col gap-4">
-        <p>
-          <strong>Mate in {current.mateIn}</strong>
-          {phase === 'play' && current.mateIn === 2 && mate2Step === 1
-            ? ' — deliver checkmate'
-            : ''}
-        </p>
-        <p>
-          <strong>You played:</strong>{' '}
-          <code className="text-error">{current.movePlayedSan}</code>
-        </p>
-        {feedback ? (
-          <p
-            className={
-              phase === 'done' ? 'text-success font-medium' : 'text-error font-medium'
-            }
-          >
-            {feedback}
-          </p>
-        ) : null}
-        {showHint && hintMove ? (
-          <p className="text-base-content/70 text-sm">
-            Hint: try <code className="text-primary">{hintMove}</code>
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
+    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="flex flex-col gap-2.5" style={{ width: boardSize(), maxWidth: '100%' }}>
+        <Chessboard
+          options={{
+            ...boardThemeOptions,
+            position: boardFen,
+            boardOrientation: current.myColor,
+            allowDragging: phase === 'play',
+            canDragPiece: ({ piece }) =>
+              phase === 'play' &&
+              piece.pieceType.startsWith(current.myColor === 'white' ? 'w' : 'b'),
+            onPieceDrop,
+          }}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SideToMoveBadge side={sideToMove} />
           {phase === 'play' ? (
-            <>
+            <div className="flex gap-2">
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -428,24 +401,52 @@ function MatePuzzleBoard({
               <button type="button" className="btn btn-outline btn-sm" onClick={resetPosition}>
                 Reset board
               </button>
-            </>
+            </div>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={onPrev}
-            disabled={idx <= 0}
-          >
+        </div>
+        {feedback ? (
+          <StatusLine tone={phase === 'done' ? 'success' : 'error'}>{feedback}</StatusLine>
+        ) : null}
+        {showHint && hintMove ? (
+          <StatusLine tone="neutral">
+            Hint: try <code className="text-primary">{hintMove}</code>
+          </StatusLine>
+        ) : null}
+      </div>
+      <div className="panel divide-y divide-base-300">
+        <div className="grid grid-cols-2 gap-4 p-4">
+          <div>
+            <p className="eyebrow mb-2.5">Task</p>
+            <p className="font-mono text-xl leading-tight font-medium">
+              <strong className="font-semibold text-primary">Mate in {current.mateIn}</strong>
+              {phase === 'play' && current.mateIn === 2 && mate2Step === 1
+                ? ' — deliver checkmate'
+                : ''}
+            </p>
+          </div>
+          <div>
+            <p className="eyebrow mb-2.5">You played</p>
+            <p className="font-mono text-3xl leading-none font-semibold text-error">
+              {current.movePlayedSan}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-[1fr_1fr_2fr]">
+          <button type="button" className="btn btn-outline" onClick={onPrev} disabled={idx <= 0}>
             Previous
           </button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={onNext}>
+          <button type="button" className="btn btn-outline" onClick={onNext}>
             Next
           </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => void toggleReviewed()}>
+          <button
+            type="button"
+            className="btn btn-primary col-span-2 row-start-1 sm:col-span-1 sm:row-auto"
+            onClick={() => void toggleReviewed()}
+          >
             Mark as reviewed
           </button>
         </div>
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-x-5 gap-y-2.5 p-4 text-sm">
           <a
             href={lichessAnalysisUrl(current.fenBefore)}
             target="_blank"
@@ -460,16 +461,14 @@ function MatePuzzleBoard({
             </a>
           ) : null}
         </div>
-        <p className="text-base-content/70 text-sm">
-          {idx + 1} / {queueLength}
-          {queuedCount > 0 ? ` · ${queuedCount} queued for repeat` : ''}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 p-4">
+          <p className="font-mono text-[13px] text-base-content/60">
+            <span className="font-semibold text-base-content">{idx + 1}</span> / {queueLength}
+            {queuedCount > 0 ? ` · ${queuedCount} queued for repeat` : ''}
+          </p>
+          <QueueProgress index={idx} total={queueLength} />
+        </div>
       </div>
     </div>
   )
-}
-
-function boardSize() {
-  if (typeof window === 'undefined') return 480
-  return Math.min(520, Math.floor(window.innerWidth - 64))
 }
