@@ -5,7 +5,7 @@ import {
   evalLossForPlayer,
 } from './classifyMove'
 import { analyzeFen, applyUciMove, uciToSan } from './stockfishClient'
-import type { OpponentReply, PlayerColor, ReviewMoveVerdict } from './types'
+import type { EngineLine, OpponentReply, PlayerColor, ReviewMoveVerdict } from './types'
 import { sideToMoveFromFen } from '../sideToMove'
 
 export async function analyzeReviewMove(params: {
@@ -90,11 +90,7 @@ const REPLY_MULTI_PV = 3
 /** A reply other than the best one must gain at least this much for the opponent. */
 const PUNISH_THRESHOLD_PAWNS = 1
 
-/**
- * Finds the opponent's best replies after the user's move. The best reply is always kept.
- * Other replies are kept only when the opponent is at least PUNISH_THRESHOLD_PAWNS better
- * than before the user's move.
- */
+/** Runs the MultiPV search after the user's move and returns the replies that punish it. */
 async function findPunishingReplies(
   fenAfterUser: string,
   whiteBeforeUserMove: number,
@@ -106,8 +102,22 @@ async function findPunishingReplies(
   } catch {
     return []
   }
+  return selectPunishingReplies(analysis.lines, fenAfterUser, whiteBeforeUserMove, player)
+}
+
+/**
+ * Selects the engine lines that punish the user's move. The best line is always kept.
+ * Other lines are kept only when the opponent is at least PUNISH_THRESHOLD_PAWNS better
+ * than before the user's move.
+ */
+export function selectPunishingReplies(
+  lines: EngineLine[],
+  fenAfterUser: string,
+  whiteBeforeUserMove: number,
+  player: PlayerColor,
+): OpponentReply[] {
   const replies: OpponentReply[] = []
-  for (const line of analysis.lines) {
+  for (const line of lines) {
     const uci = line.pvUci[0]
     if (!uci) continue
     const lossForPlayer = evalLossForPlayer(whiteBeforeUserMove, line.whitePovPawns, player)

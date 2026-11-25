@@ -18,6 +18,12 @@ npm run build
 npm run preview
 ```
 
+Tests (Vitest, engine logic only):
+
+```bash
+npm test
+```
+
 ## Lichess import
 
 1. Under **Import**, enter your Lichess username, max games, and blunder threshold.
