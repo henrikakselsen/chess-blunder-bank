@@ -258,9 +258,9 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
   )
 }
 
-/** Arrow colours for punishing opponent replies: best reply strong, others lighter. */
+/** Arrow colours for opponent replies that punish the move: best reply strong, others lighter. */
 const BEST_REPLY_ARROW_COLOR = 'rgb(220, 38, 38)'
-const OTHER_REPLY_ARROW_COLOR = 'rgb(252, 165, 165)'
+const OTHER_REPLY_ARROW_COLOR = 'rgb(248, 113, 113)'
 
 type MoveFeedback = {
   text: string

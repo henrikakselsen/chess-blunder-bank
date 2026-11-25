@@ -19,6 +19,10 @@ let pendingReject: ((err: Error) => void) | null = null
 let searchFen = ''
 let lineInfo = new Map<number, EngineLine>()
 let currentMultiPv = 1
+/** Number of 'go' commands that did not get a 'bestmove' yet. */
+let searchesInFlight = 0
+/** Callbacks that wait for the engine to finish all searches. */
+let idleWaiters: (() => void)[] = []
 let searchGeneration = 0
 
 function stockfishAssetUrls(): { js: string; wasm: string } {
@@ -64,8 +68,14 @@ function onWorkerMessage(raw: string) {
     return
   }
 
+  const bestUci = parseBestMoveLine(line)
+  const isBestMoveLine = line.startsWith('bestmove ')
+  if (isBestMoveLine) {
+    searchesInFlight = Math.max(0, searchesInFlight - 1)
+  }
+
   const info = parseUciInfoLine(line)
-  if (info && info.score && searchFen) {
+  if (info && info.score && !info.isBound && searchFen) {
     const chess = new Chess(searchFen)
     const stm = chess.turn()
     const whitePovPawns = scoreToWhitePovPawns(info.score, stm)
@@ -80,8 +90,7 @@ function onWorkerMessage(raw: string) {
     }
   }
 
-  const bestUci = parseBestMoveLine(line)
-  if (bestUci !== null && pendingSearch) {
+  if (isBestMoveLine && pendingSearch) {
     const resolve = pendingSearch
     pendingSearch = null
     pendingReject = null
@@ -95,6 +104,12 @@ function onWorkerMessage(raw: string) {
     }
     lineInfo = new Map()
     resolve(analysis)
+  }
+
+  if (isBestMoveLine && searchesInFlight === 0) {
+    const waiters = idleWaiters
+    idleWaiters = []
+    for (const wake of waiters) wake()
   }
 }
 
@@ -139,16 +154,20 @@ export async function analyzeFen(
     send('stop')
     rejectPending(new Error('Search superseded'))
   }
+  // The single-thread engine crashes when it gets 'position' and 'go' during a search,
+  // and its stale output would mix with the new search. Wait until the old search ends.
+  if (searchesInFlight > 0) {
+    await new Promise<void>((wake) => idleWaiters.push(wake))
+    if (generation !== searchGeneration) throw new Error('Search superseded')
+  }
 
   return new Promise<EngineAnalysis>((resolve, reject) => {
     pendingSearch = (analysis) => {
       if (generation !== searchGeneration) return
       resolve(analysis)
     }
-    pendingReject = (err) => {
-      if (generation !== searchGeneration) return
-      reject(err)
-    }
+    // Always reject: a superseded search must settle, also after the generation changed.
+    pendingReject = reject
 
     searchFen = fen
     lineInfo = new Map()
@@ -157,6 +176,7 @@ export async function analyzeFen(
       currentMultiPv = multiPv
     }
     send(`position fen ${fen}`)
+    searchesInFlight += 1
     send(`go movetime ${movetimeMs}`)
   })
 }

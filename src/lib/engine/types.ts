@@ -45,6 +45,6 @@ export interface ReviewMoveVerdict {
   lossPawns: number
   bestMoveSan: string | null
   userMoveSan: string
-  /** Punishing opponent replies (mistake, blunder and game-blunder only). */
+  /** Opponent replies that punish the move (mistake, blunder and game-blunder only). */
   opponentReplies: OpponentReply[]
 }
