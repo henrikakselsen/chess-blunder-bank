@@ -78,7 +78,7 @@ export function buildReviewVerdict(params: {
   const opponentReplies = params.opponentReplies ?? []
   return {
     quality: params.quality,
-    message: message + threatText(opponentReplies),
+    message,
     opponentReplies,
     tone,
     lossPawns: params.lossPawns,
@@ -87,9 +87,10 @@ export function buildReviewVerdict(params: {
   }
 }
 
-function threatText(replies: OpponentReply[]): string {
+/** Text that names the opponent replies, for example "Threat: Qxf7# (also Bxf7+)." */
+export function formatThreats(replies: OpponentReply[]): string {
   if (replies.length === 0) return ''
   const [first, ...rest] = replies
   const also = rest.length > 0 ? ` (also ${rest.map((r) => r.san).join(', ')})` : ''
-  return ` Threat: ${first.san}${also}.`
+  return `Threat: ${first.san}${also}.`
 }

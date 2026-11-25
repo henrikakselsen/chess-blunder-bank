@@ -14,6 +14,8 @@ import {
 } from '../db/tags'
 import type { MistakeRow } from '../db/schema'
 import { analyzeReviewMove } from '../lib/engine/reviewMoveAnalysis'
+import { formatThreats } from '../lib/engine/classifyMove'
+import type { OpponentReply } from '../lib/engine/types'
 import { useStockfish } from '../lib/engine/useStockfish'
 import { loadImportPreferences } from '../lib/importPreferences'
 import { lichessAnalysisUrl } from '../lib/lichessUrl'
@@ -152,7 +154,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
     <section className="space-y-4">
       <h1 className="text-3xl font-bold">Review</h1>
       <p className="text-base-content/70 text-sm">
-        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, Esc = blur field.
+        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, t = show/hide threats, Esc = blur field.
       </p>
       <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
         <ReviewBoard
@@ -280,7 +282,8 @@ function ReviewBoard({
   const [boardFen, setBoardFen] = useState(fenBefore)
   const [feedback, setFeedback] = useState<MoveFeedback | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
-  const [replyArrows, setReplyArrows] = useState<Arrow[]>([])
+  const [replies, setReplies] = useState<OpponentReply[]>([])
+  const [threatsShown, setThreatsShown] = useState(false)
   const analysisGenRef = useRef(0)
   const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
   const sideToMove = sideToMoveFromFen(boardFen)
@@ -288,7 +291,8 @@ function ReviewBoard({
   const resetBoard = useCallback(() => {
     setBoardFen(fenBefore)
     setFeedback(null)
-    setReplyArrows([])
+    setReplies([])
+    setThreatsShown(false)
     setAnalyzing(false)
     analysisGenRef.current += 1
   }, [fenBefore])
@@ -333,7 +337,8 @@ function ReviewBoard({
       }
 
       const gen = ++analysisGenRef.current
-      setReplyArrows([])
+      setReplies([])
+      setThreatsShown(false)
       setAnalyzing(true)
       setFeedback({ text: 'Analyzing with Stockfish…', tone: 'neutral' })
 
@@ -348,13 +353,7 @@ function ReviewBoard({
           if (gen !== analysisGenRef.current) return
           setBoardFen(chess.fen())
           setFeedback({ text: verdict.message, tone: verdict.tone })
-          setReplyArrows(
-            verdict.opponentReplies.map((reply) => ({
-              startSquare: reply.from,
-              endSquare: reply.to,
-              color: reply.rank === 1 ? BEST_REPLY_ARROW_COLOR : OTHER_REPLY_ARROW_COLOR,
-            })),
-          )
+          setReplies(verdict.opponentReplies)
         })
         .catch(() => {
           if (gen !== analysisGenRef.current) return
@@ -371,6 +370,32 @@ function ReviewBoard({
     },
     [analyzing, blunderSan, blunderThresholdPawns, boardFen, engineState, fenBefore],
   )
+
+  const replyArrows = useMemo<Arrow[]>(
+    () =>
+      threatsShown
+        ? replies.map((reply) => ({
+            startSquare: reply.from,
+            endSquare: reply.to,
+            color: reply.rank === 1 ? BEST_REPLY_ARROW_COLOR : OTHER_REPLY_ARROW_COLOR,
+          }))
+        : [],
+    [replies, threatsShown],
+  )
+  const hasThreats = replies.length > 0
+
+  useEffect(() => {
+    if (!hasThreats) return
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 't') {
+        e.preventDefault()
+        setThreatsShown((shown) => !shown)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [hasThreats])
 
   const feedbackClass =
     feedback?.tone === 'success'
@@ -392,11 +417,22 @@ function ReviewBoard({
       {feedback ? (
         <p className={`max-w-md text-center text-sm ${feedbackClass}`} role="status">
           {feedback.text}
+          {threatsShown && hasThreats ? ` ${formatThreats(replies)}` : ''}
         </p>
       ) : engineState === 'ready' ? (
         <p className="max-w-md text-center text-base-content/60 text-sm">
           Play your move — Stockfish will rate it against the engine line.
         </p>
+      ) : null}
+      {hasThreats ? (
+        <button
+          type="button"
+          className="btn btn-error btn-outline btn-xs"
+          aria-pressed={threatsShown}
+          onClick={() => setThreatsShown((shown) => !shown)}
+        >
+          {threatsShown ? 'Hide threats' : 'Show threats'}
+        </button>
       ) : null}
       <div
         className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
