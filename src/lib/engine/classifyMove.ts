@@ -1,4 +1,4 @@
-import type { MoveQuality, PlayerColor, ReviewMoveVerdict } from './types'
+import type { MoveQuality, OpponentReply, PlayerColor, ReviewMoveVerdict } from './types'
 
 export function evalLossForPlayer(
   whitePovBefore: number,
@@ -72,14 +72,24 @@ export function buildReviewVerdict(params: {
   lossPawns: number
   bestMoveSan: string | null
   userMoveSan: string
+  opponentReplies?: OpponentReply[]
 }): ReviewMoveVerdict {
   const { message, tone } = qualityMessage(params.quality, params.lossPawns, params.bestMoveSan)
+  const opponentReplies = params.opponentReplies ?? []
   return {
     quality: params.quality,
-    message,
+    message: message + threatText(opponentReplies),
+    opponentReplies,
     tone,
     lossPawns: params.lossPawns,
     bestMoveSan: params.bestMoveSan,
     userMoveSan: params.userMoveSan,
   }
+}
+
+function threatText(replies: OpponentReply[]): string {
+  if (replies.length === 0) return ''
+  const [first, ...rest] = replies
+  const also = rest.length > 0 ? ` (also ${rest.map((r) => r.san).join(', ')})` : ''
+  return ` Threat: ${first.san}${also}.`
 }

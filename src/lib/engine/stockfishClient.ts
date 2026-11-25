@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js'
-import type { EngineAnalysis } from './types'
+import type { EngineAnalysis, EngineLine } from './types'
 import {
   parseBestMoveLine,
   parseUciInfoLine,
@@ -17,7 +17,8 @@ let pendingInit: (() => void) | null = null
 let pendingSearch: ((analysis: EngineAnalysis) => void) | null = null
 let pendingReject: ((err: Error) => void) | null = null
 let searchFen = ''
-let bestInfo: { depth: number; whitePovPawns: number; pvUci: string[] } | null = null
+let lineInfo = new Map<number, EngineLine>()
+let currentMultiPv = 1
 let searchGeneration = 0
 
 function stockfishAssetUrls(): { js: string; wasm: string } {
@@ -29,7 +30,8 @@ function stockfishAssetUrls(): { js: string; wasm: string } {
 
 function createWorker(): Worker {
   const { js, wasm } = stockfishAssetUrls()
-  const url = `${js}#${encodeURIComponent(wasm)},worker`
+  // Do not add ",worker" to the hash: Stockfish then waits as a pthread helper and never starts.
+  const url = `${js}#${encodeURIComponent(wasm)}`
   return new Worker(url)
 }
 
@@ -67,12 +69,14 @@ function onWorkerMessage(raw: string) {
     const chess = new Chess(searchFen)
     const stm = chess.turn()
     const whitePovPawns = scoreToWhitePovPawns(info.score, stm)
-    if (info.depth >= (bestInfo?.depth ?? 0)) {
-      bestInfo = {
+    const previous = lineInfo.get(info.multipv)
+    if (info.depth >= (previous?.depth ?? 0)) {
+      lineInfo.set(info.multipv, {
+        rank: info.multipv,
         depth: info.depth,
         whitePovPawns,
         pvUci: info.pv,
-      }
+      })
     }
   }
 
@@ -81,12 +85,15 @@ function onWorkerMessage(raw: string) {
     const resolve = pendingSearch
     pendingSearch = null
     pendingReject = null
+    const lines = [...lineInfo.values()].sort((a, b) => a.rank - b.rank)
+    const top = lineInfo.get(1)
     const analysis: EngineAnalysis = {
-      whitePovPawns: bestInfo?.whitePovPawns ?? 0,
+      whitePovPawns: top?.whitePovPawns ?? 0,
       bestMoveUci: bestUci,
-      depth: bestInfo?.depth ?? 0,
+      depth: top?.depth ?? 0,
+      lines,
     }
-    bestInfo = null
+    lineInfo = new Map()
     resolve(analysis)
   }
 }
@@ -119,7 +126,11 @@ export function isStockfishReady(): boolean {
   return ready
 }
 
-export async function analyzeFen(fen: string, movetimeMs = MOVETIME_MS): Promise<EngineAnalysis> {
+export async function analyzeFen(
+  fen: string,
+  movetimeMs = MOVETIME_MS,
+  multiPv = 1,
+): Promise<EngineAnalysis> {
   await ensureWorker()
   if (!worker) throw new Error('Stockfish worker not available')
 
@@ -140,7 +151,11 @@ export async function analyzeFen(fen: string, movetimeMs = MOVETIME_MS): Promise
     }
 
     searchFen = fen
-    bestInfo = null
+    lineInfo = new Map()
+    if (multiPv !== currentMultiPv) {
+      send(`setoption name MultiPV value ${multiPv}`)
+      currentMultiPv = multiPv
+    }
     send(`position fen ${fen}`)
     send(`go movetime ${movetimeMs}`)
   })

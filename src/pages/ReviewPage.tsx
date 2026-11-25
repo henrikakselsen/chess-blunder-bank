@@ -2,7 +2,7 @@ import { Chess } from 'chess.js'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
-import type { PieceDropHandlerArgs } from 'react-chessboard'
+import type { Arrow, PieceDropHandlerArgs } from 'react-chessboard'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
 import { sideToMoveFromFen } from '../lib/sideToMove'
 import { db } from '../db'
@@ -258,6 +258,10 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
   )
 }
 
+/** Arrow colours for punishing opponent replies: best reply strong, others lighter. */
+const BEST_REPLY_ARROW_COLOR = 'rgb(220, 38, 38)'
+const OTHER_REPLY_ARROW_COLOR = 'rgb(252, 165, 165)'
+
 type MoveFeedback = {
   text: string
   tone: 'success' | 'error' | 'warning' | 'neutral'
@@ -276,6 +280,7 @@ function ReviewBoard({
   const [boardFen, setBoardFen] = useState(fenBefore)
   const [feedback, setFeedback] = useState<MoveFeedback | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [replyArrows, setReplyArrows] = useState<Arrow[]>([])
   const analysisGenRef = useRef(0)
   const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
   const sideToMove = sideToMoveFromFen(boardFen)
@@ -283,6 +288,7 @@ function ReviewBoard({
   const resetBoard = useCallback(() => {
     setBoardFen(fenBefore)
     setFeedback(null)
+    setReplyArrows([])
     setAnalyzing(false)
     analysisGenRef.current += 1
   }, [fenBefore])
@@ -327,6 +333,7 @@ function ReviewBoard({
       }
 
       const gen = ++analysisGenRef.current
+      setReplyArrows([])
       setAnalyzing(true)
       setFeedback({ text: 'Analyzing with Stockfish…', tone: 'neutral' })
 
@@ -339,12 +346,15 @@ function ReviewBoard({
       })
         .then((verdict) => {
           if (gen !== analysisGenRef.current) return
-          if (verdict.quality === 'game-blunder') {
-            setFeedback({ text: verdict.message, tone: 'error' })
-            return
-          }
           setBoardFen(chess.fen())
           setFeedback({ text: verdict.message, tone: verdict.tone })
+          setReplyArrows(
+            verdict.opponentReplies.map((reply) => ({
+              startSquare: reply.from,
+              endSquare: reply.to,
+              color: reply.rank === 1 ? BEST_REPLY_ARROW_COLOR : OTHER_REPLY_ARROW_COLOR,
+            })),
+          )
         })
         .catch(() => {
           if (gen !== analysisGenRef.current) return
@@ -395,6 +405,7 @@ function ReviewBoard({
         <Chessboard
           options={{
             position: boardFen,
+            arrows: replyArrows,
             boardOrientation: startOrientation,
             allowDragging: engineState === 'ready' && !analyzing,
             canDragPiece: ({ piece }) => {
