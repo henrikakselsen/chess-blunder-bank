@@ -2,12 +2,17 @@ import type { EngineScore } from './types'
 
 export function parseUciInfoLine(line: string): {
   depth: number
+  multipv: number
   score: EngineScore | null
+  /** True when the score is only a lower or upper bound, not an exact value. */
+  isBound: boolean
   pv: string[]
 } | null {
   if (!line.startsWith('info ')) return null
   const parts = line.split(/\s+/)
   let depth = 0
+  let multipv = 1
+  let isBound = false
   let score: EngineScore | null = null
   const pv: string[] = []
   let i = 1
@@ -15,6 +20,11 @@ export function parseUciInfoLine(line: string): {
     const token = parts[i]
     if (token === 'depth' && parts[i + 1]) {
       depth = Number.parseInt(parts[i + 1], 10) || 0
+      i += 2
+      continue
+    }
+    if (token === 'multipv' && parts[i + 1]) {
+      multipv = Number.parseInt(parts[i + 1], 10) || 1
       i += 2
       continue
     }
@@ -29,6 +39,11 @@ export function parseUciInfoLine(line: string): {
       i += 3
       continue
     }
+    if (token === 'lowerbound' || token === 'upperbound') {
+      isBound = true
+      i += 1
+      continue
+    }
     if (token === 'pv') {
       pv.push(...parts.slice(i + 1))
       break
@@ -36,7 +51,7 @@ export function parseUciInfoLine(line: string): {
     i += 1
   }
   if (!depth && !score && pv.length === 0) return null
-  return { depth, score, pv }
+  return { depth, multipv, score, isBound, pv }
 }
 
 export function parseBestMoveLine(line: string): string | null {

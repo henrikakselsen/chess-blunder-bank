@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js'
-import type { EngineAnalysis } from './types'
+import type { EngineAnalysis, EngineLine } from './types'
 import {
   parseBestMoveLine,
   parseUciInfoLine,
@@ -17,7 +17,12 @@ let pendingInit: (() => void) | null = null
 let pendingSearch: ((analysis: EngineAnalysis) => void) | null = null
 let pendingReject: ((err: Error) => void) | null = null
 let searchFen = ''
-let bestInfo: { depth: number; whitePovPawns: number; pvUci: string[] } | null = null
+let lineInfo = new Map<number, EngineLine>()
+let currentMultiPv = 1
+/** Number of 'go' commands that did not get a 'bestmove' yet. */
+let searchesInFlight = 0
+/** Callbacks that wait for the engine to finish all searches. */
+let idleWaiters: (() => void)[] = []
 let searchGeneration = 0
 
 function stockfishAssetUrls(): { js: string; wasm: string } {
@@ -29,7 +34,8 @@ function stockfishAssetUrls(): { js: string; wasm: string } {
 
 function createWorker(): Worker {
   const { js, wasm } = stockfishAssetUrls()
-  const url = `${js}#${encodeURIComponent(wasm)},worker`
+  // Do not add ",worker" to the hash: Stockfish then waits as a pthread helper and never starts.
+  const url = `${js}#${encodeURIComponent(wasm)}`
   return new Worker(url)
 }
 
@@ -62,32 +68,48 @@ function onWorkerMessage(raw: string) {
     return
   }
 
+  const bestUci = parseBestMoveLine(line)
+  const isBestMoveLine = line.startsWith('bestmove ')
+  if (isBestMoveLine) {
+    searchesInFlight = Math.max(0, searchesInFlight - 1)
+  }
+
   const info = parseUciInfoLine(line)
-  if (info && info.score && searchFen) {
+  if (info && info.score && !info.isBound && searchFen) {
     const chess = new Chess(searchFen)
     const stm = chess.turn()
     const whitePovPawns = scoreToWhitePovPawns(info.score, stm)
-    if (info.depth >= (bestInfo?.depth ?? 0)) {
-      bestInfo = {
+    const previous = lineInfo.get(info.multipv)
+    if (info.depth >= (previous?.depth ?? 0)) {
+      lineInfo.set(info.multipv, {
+        rank: info.multipv,
         depth: info.depth,
         whitePovPawns,
         pvUci: info.pv,
-      }
+      })
     }
   }
 
-  const bestUci = parseBestMoveLine(line)
-  if (bestUci !== null && pendingSearch) {
+  if (isBestMoveLine && pendingSearch) {
     const resolve = pendingSearch
     pendingSearch = null
     pendingReject = null
+    const lines = [...lineInfo.values()].sort((a, b) => a.rank - b.rank)
+    const top = lineInfo.get(1)
     const analysis: EngineAnalysis = {
-      whitePovPawns: bestInfo?.whitePovPawns ?? 0,
+      whitePovPawns: top?.whitePovPawns ?? 0,
       bestMoveUci: bestUci,
-      depth: bestInfo?.depth ?? 0,
+      depth: top?.depth ?? 0,
+      lines,
     }
-    bestInfo = null
+    lineInfo = new Map()
     resolve(analysis)
+  }
+
+  if (isBestMoveLine && searchesInFlight === 0) {
+    const waiters = idleWaiters
+    idleWaiters = []
+    for (const wake of waiters) wake()
   }
 }
 
@@ -119,7 +141,11 @@ export function isStockfishReady(): boolean {
   return ready
 }
 
-export async function analyzeFen(fen: string, movetimeMs = MOVETIME_MS): Promise<EngineAnalysis> {
+export async function analyzeFen(
+  fen: string,
+  movetimeMs = MOVETIME_MS,
+  multiPv = 1,
+): Promise<EngineAnalysis> {
   await ensureWorker()
   if (!worker) throw new Error('Stockfish worker not available')
 
@@ -128,20 +154,29 @@ export async function analyzeFen(fen: string, movetimeMs = MOVETIME_MS): Promise
     send('stop')
     rejectPending(new Error('Search superseded'))
   }
+  // The single-thread engine crashes when it gets 'position' and 'go' during a search,
+  // and its stale output would mix with the new search. Wait until the old search ends.
+  if (searchesInFlight > 0) {
+    await new Promise<void>((wake) => idleWaiters.push(wake))
+    if (generation !== searchGeneration) throw new Error('Search superseded')
+  }
 
   return new Promise<EngineAnalysis>((resolve, reject) => {
     pendingSearch = (analysis) => {
       if (generation !== searchGeneration) return
       resolve(analysis)
     }
-    pendingReject = (err) => {
-      if (generation !== searchGeneration) return
-      reject(err)
-    }
+    // Always reject: a superseded search must settle, also after the generation changed.
+    pendingReject = reject
 
     searchFen = fen
-    bestInfo = null
+    lineInfo = new Map()
+    if (multiPv !== currentMultiPv) {
+      send(`setoption name MultiPV value ${multiPv}`)
+      currentMultiPv = multiPv
+    }
     send(`position fen ${fen}`)
+    searchesInFlight += 1
     send(`go movetime ${movetimeMs}`)
   })
 }
