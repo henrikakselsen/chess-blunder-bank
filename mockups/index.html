@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess Blunder Bank — visual directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:var(--font-body);color:var(--color-base-content);background:var(--mock-bg);line-height:1.5}
+a{color:inherit}
+h1,h2,h3,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+.muted{color:var(--muted)}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+
+/* mockup chrome (not part of the app) */
+.mock-bar{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:12px 16px;font:500 13px/1.4 var(--font-body);background:var(--mock-bar);color:var(--mock-bar-ink)}
+.mock-bar strong{font-weight:700}
+.mock-bar a{text-underline-offset:3px}
+.mock-bar .sp{flex:1}
+.mock-sec{max-width:1240px;margin:0 auto;padding:28px 16px 8px}
+.mock-cap{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:12px;color:var(--mock-ink)}
+.mock-cap h2{font:700 15px/1.3 var(--font-body);letter-spacing:.02em}
+.mock-cap p{font-size:13px;opacity:.75}
+.frame{border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.06),0 18px 40px -22px rgba(0,0,0,.45);border:1px solid var(--mock-frame)}
+.phone{width:402px;max-width:100%;margin:0 auto;border-radius:30px;border-width:6px;border-color:var(--mock-phone)}
+.mock-foot{max-width:1240px;margin:0 auto;padding:28px 16px 48px;font-size:13px;color:var(--mock-ink);opacity:.8}
+.mock-foot code{font-family:var(--font-mono);font-size:12px}
+@media (max-width:640px){
+  .mock-sec{padding:24px 0 0}
+  .mock-cap{padding:0 16px}
+  .frame{border-radius:0;border-left:0;border-right:0}
+  .phone{width:100%;border-width:0}
+}
+
+/* app */
+.screen{container-type:inline-size;container-name:screen;background:var(--app-bg);color:var(--color-base-content)}
+.main{padding:28px 32px 36px;max-width:1120px;margin:0 auto}
+@container screen (max-width:720px){.main{padding:16px 16px 28px}}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border:var(--border) solid transparent;border-radius:var(--radius-field);font-weight:600;font-size:14px;line-height:1;text-decoration:none;cursor:pointer;white-space:nowrap;background:transparent}
+.btn-sm{min-height:34px;padding:0 12px;font-size:13px}
+.btn-primary{background:var(--color-primary);color:var(--color-primary-content)}
+.btn-outline{border-color:var(--line-strong);background:var(--btn-bg)}
+.btn-ghost{color:var(--muted)}
+.btn-error{border-color:color-mix(in oklab,var(--color-error) 45%,transparent);color:var(--color-error)}
+.btn[disabled]{opacity:.45}
+.kbd{display:inline-block;min-width:22px;padding:1px 6px;border:var(--border) solid var(--line-strong);border-bottom-width:2px;border-radius:5px;font:500 11px/1.5 var(--font-mono);text-align:center;background:var(--btn-bg)}
+.link{color:var(--link);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;font-weight:500}
+.label{display:block;margin-bottom:6px;font-size:13px;font-weight:600}
+.input,.textarea,.select{width:100%;padding:9px 12px;border:var(--border) solid var(--line-strong);border-radius:var(--radius-field);background:var(--field-bg);font-size:15px}
+.textarea{min-height:104px;resize:vertical;line-height:1.5;display:block}
+.input-sm{padding:6px 10px;font-size:14px}
+
+/* board: square colours, highlight and frame are the only board options that change */
+.board{position:relative;container-type:inline-size;width:100%;aspect-ratio:1;border-radius:var(--board-radius,6px);overflow:hidden}
+.squares{display:grid;grid-template-columns:repeat(8,1fr);width:100%;height:100%}
+.sq{position:relative;aspect-ratio:1}
+.sq.l{background:var(--board-light);color:var(--board-dark)}
+.sq.d{background:var(--board-dark);color:var(--board-light)}
+.sq.hl::after{content:"";position:absolute;inset:0;background:var(--board-hl)}
+.pc{position:absolute;inset:4%;width:92%;height:92%;z-index:1}
+.rk,.fl{position:absolute;font:600 2.3cqw/1 var(--font-body);opacity:.9}
+.rk{top:4%;left:5%}
+.fl{bottom:4%;right:6%}
+.arrow{position:absolute;inset:0;width:100%;height:100%;z-index:2;color:var(--board-arrow);opacity:.85;pointer-events:none}
+
+/* side to move */
+.stm{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 8px;border-radius:var(--radius-selector);font-size:13px;font-weight:600;border:var(--border) solid var(--line-strong)}
+.stm i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--stm-ring)}
+.stm.white{background:#fff;color:#1a1a1a}
+.stm.white i{background:#fff}
+.stm.black{background:#1d1f24;color:#fff;border-color:#1d1f24}
+.stm.black i{background:#1d1f24;border-color:#fff}
+
+/* stockfish feedback (role=status) */
+.fb{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius-field);font-size:14px;line-height:1.45;border:var(--border) solid var(--line);border-left:3px solid var(--tone);background:color-mix(in oklab,var(--tone) 7%,var(--color-base-100))}
+.fb b{color:var(--tone);font-weight:700;white-space:nowrap}
+.fb.neutral{--tone:var(--muted-solid)}
+.fb.success{--tone:var(--color-success)}
+.fb.warning{--tone:var(--color-warning)}
+.fb.error{--tone:var(--color-error)}
+.engine{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+.engine i{width:8px;height:8px;border-radius:50%;background:var(--color-success)}
+
+.tag{display:inline-flex;align-items:center;gap:7px;padding:6px 11px 6px 9px;border:var(--border) solid var(--line-strong);border-radius:var(--radius-selector);font-size:13.5px;background:var(--btn-bg);cursor:pointer}
+.tag i{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--line-strong);display:grid;place-items:center;font-style:normal;font-size:10px;line-height:1;color:transparent}
+.tag.on{border-color:var(--color-primary);background:color-mix(in oklab,var(--color-primary) 9%,var(--color-base-100))}
+.tag.on i{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-content)}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.newtag{display:flex;gap:8px;margin-top:10px;max-width:320px}
+
+:root{--font-display:"Bricolage Grotesque",sans-serif;--font-body:"Instrument Sans",sans-serif;--font-mono:"JetBrains Mono",monospace;
+  --mock-bg:#e9ebf0;--color-base-content:#151c2c}
+body{background:#e9ebf0 radial-gradient(circle,#cfd5e0 1px,transparent 1.2px) 0 0/22px 22px}
+.wrap{max-width:1320px;margin:0 auto;padding:40px 16px 56px}
+h1{font:700 40px/1.05 var(--font-display);letter-spacing:-.02em}
+.intro{max-width:64ch;margin-top:10px;font-size:16px;color:#4b556a}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:32px}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+.dir{display:flex;flex-direction:column;gap:12px;text-decoration:none}
+.thumb{position:relative;aspect-ratio:1280/900;overflow:hidden;border-radius:12px;border:1px solid #c5ccd9;background:#fff;box-shadow:0 18px 40px -24px rgba(21,28,44,.5)}
+.thumb iframe{position:absolute;top:0;left:0;width:1280px;height:900px;border:0;transform-origin:0 0;pointer-events:none}
+.dir h2{font:700 22px/1.2 var(--font-display)}
+.dir h2 small{font:600 12px/1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:#2346c7;color:#fff;margin-left:8px;vertical-align:middle}
+.dir p{font-size:15px;color:#4b556a}
+.dir .meta{font:500 12.5px/1.5 var(--font-mono);color:#5a6478}
+.dir .go{font-weight:600;color:#2346c7;text-decoration:underline;text-underline-offset:3px}
+</style>
+</head>
+<body>
+
+<div class="wrap"><h1>Chess Blunder Bank — visual directions</h1>
+<p class="intro">Three directions for a new look. Each file shows the Review page. Direction A also shows the phone layout, the Import page and the List page.</p>
+<div class="grid"><a class="dir" href="direction-a.html"><div class="thumb"><iframe src="direction-a.html" title="Preview of direction A" tabindex="-1"></iframe></div><h2>A — Study desk<small>Recommended</small></h2><p>A calm, light study tool. The board and the verdict get the attention. Cobalt is the one accent, and red marks the blunder.</p><p class="meta">Bricolage Grotesque · Instrument Sans · JetBrains Mono</p><p><span class="go">Open direction A</span> — Review, mobile, Import and List</p></a><a class="dir" href="direction-b.html"><div class="thumb"><iframe src="direction-b.html" title="Preview of direction B" tabindex="-1"></iframe></div><h2>B — Analysis room</h2><p>A dark engine workspace. A side rail, a vertical eval bar and dense data blocks. Amber is the one accent.</p><p class="meta">Space Grotesk · IBM Plex Sans · IBM Plex Mono</p><p><span class="go">Open direction B</span> — Review</p></a><a class="dir" href="direction-c.html"><div class="thumb"><iframe src="direction-c.html" title="Preview of direction C" tabindex="-1"></iframe></div><h2>C — Club room</h2><p>A walnut board on green felt. The position details are on a paper score sheet with typewriter notation.</p><p class="meta">Fraunces · Source Serif 4 · Courier Prime</p><p><span class="go">Open direction C</span> — Review</p></a></div></div>
+<script>
+// Scale each preview to the width of its card.
+const fit = () => document.querySelectorAll('.thumb').forEach(t => { t.firstElementChild.style.transform = 'scale(' + t.clientWidth / 1280 + ') translateY(-104px)' });
+fit(); addEventListener('resize', fit);
+</script>
+</body>
+</html>

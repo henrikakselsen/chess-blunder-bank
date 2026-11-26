@@ -47,41 +47,41 @@ export function ListPage() {
   const rows = tab === 'blunders' ? blunderRows : mateRows
 
   return (
-    <section className="space-y-6">
-      <h1 className="text-3xl font-bold">All positions</h1>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className={`btn btn-sm ${tab === 'blunders' ? 'btn-primary' : 'btn-outline'}`}
-          onClick={() => setTab('blunders')}
-        >
-          Blunders
-        </button>
-        <button
-          type="button"
-          className={`btn btn-sm ${tab === 'mates' ? 'btn-primary' : 'btn-outline'}`}
-          onClick={() => setTab('mates')}
-        >
-          Missed mates
-        </button>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        <h1 className="font-display text-[22px] leading-none font-bold">All positions</h1>
+        <div className="join">
+          <button
+            type="button"
+            className={`btn btn-sm join-item ${tab === 'blunders' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setTab('blunders')}
+          >
+            Blunders
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm join-item ${tab === 'mates' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setTab('mates')}
+          >
+            Missed mates
+          </button>
+        </div>
       </div>
-      <div className="flex flex-wrap items-end gap-4">
-        <label className="label cursor-pointer gap-2">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"
-            className="checkbox checkbox-primary"
+            className="checkbox checkbox-primary checkbox-sm"
             checked={onlyUnreviewed}
             onChange={(e) => setOnlyUnreviewed(e.target.checked)}
           />
-          <span className="label-text">Unreviewed only</span>
+          <span>Unreviewed only</span>
         </label>
         {tab === 'blunders' ? (
-          <label className="form-control">
-            <span className="label py-0">
-              <span className="label-text">Tag</span>
-            </span>
+          <label className="flex items-center gap-2.5">
+            <span className="eyebrow">Tag</span>
             <select
-              className="select select-bordered select-sm min-w-40"
+              className="select select-sm w-auto min-w-40"
               value={tagFilterId === '' ? '' : String(tagFilterId)}
               onChange={(e) =>
                 setTagFilterId(e.target.value === '' ? '' : Number(e.target.value))
@@ -97,9 +97,9 @@ export function ListPage() {
           </label>
         ) : null}
       </div>
-      <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+      <div className="panel overflow-x-auto [&_td]:whitespace-nowrap [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-widest [&_th]:uppercase">
         {tab === 'blunders' ? (
-          <table className="table table-zebra table-sm">
+          <table className="table table-sm">
             <thead>
               <tr>
                 <th>Date</th>
@@ -112,14 +112,19 @@ export function ListPage() {
             <tbody>
               {blunderRows.map((m) => (
                 <tr key={m.id}>
-                  <td>{new Date(m.createdAt).toLocaleString('en-GB')}</td>
-                  <td>
-                    {m.evalBefore.toFixed(2)} → {m.evalAfter.toFixed(2)}
+                  <td className="font-mono text-xs text-base-content/70">
+                    {new Date(m.createdAt).toLocaleString('en-GB')}
+                  </td>
+                  <td className="font-mono">
+                    {m.evalBefore.toFixed(2)} →{' '}
+                    <span className="text-error">{m.evalAfter.toFixed(2)}</span>
                   </td>
                   <td>
-                    <code className="text-sm">{m.moveSan}</code>
+                    <code className="font-mono text-sm font-semibold">{m.moveSan}</code>
                   </td>
-                  <td>{m.reviewed ? 'Yes' : 'No'}</td>
+                  <td>
+                    <ReviewedBadge reviewed={m.reviewed} />
+                  </td>
                   <td>
                     <div className="flex flex-wrap gap-2">
                       {m.gameUrl ? (
@@ -142,7 +147,7 @@ export function ListPage() {
             </tbody>
           </table>
         ) : (
-          <table className="table table-zebra table-sm">
+          <table className="table table-sm">
             <thead>
               <tr>
                 <th>Date</th>
@@ -155,12 +160,16 @@ export function ListPage() {
             <tbody>
               {mateRows.map((m) => (
                 <tr key={m.id}>
-                  <td>{new Date(m.createdAt).toLocaleString('en-GB')}</td>
-                  <td>{m.mateIn}</td>
-                  <td>
-                    <code className="text-sm">{m.movePlayedSan}</code>
+                  <td className="font-mono text-xs text-base-content/70">
+                    {new Date(m.createdAt).toLocaleString('en-GB')}
                   </td>
-                  <td>{m.reviewed ? 'Yes' : 'No'}</td>
+                  <td className="font-mono">{m.mateIn}</td>
+                  <td>
+                    <code className="font-mono text-sm font-semibold">{m.movePlayedSan}</code>
+                  </td>
+                  <td>
+                    <ReviewedBadge reviewed={m.reviewed} />
+                  </td>
                   <td>
                     <div className="flex flex-wrap gap-2">
                       {m.gameUrl ? (
@@ -192,5 +201,17 @@ export function ListPage() {
         </p>
       ) : null}
     </section>
+  )
+}
+
+function ReviewedBadge({ reviewed }: { reviewed: boolean }) {
+  return (
+    <span
+      className={`rounded-selector border px-2 py-0.5 font-mono text-xs ${
+        reviewed ? 'border-success/40 text-success' : 'border-base-300 text-base-content/60'
+      }`}
+    >
+      {reviewed ? 'Yes' : 'No'}
+    </span>
   )
 }

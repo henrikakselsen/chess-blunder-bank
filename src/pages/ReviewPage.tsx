@@ -3,7 +3,16 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import type { Arrow, PieceDropHandlerArgs } from 'react-chessboard'
+import { EvalBar } from '../components/EvalBar'
+import { QueueProgress } from '../components/QueueProgress'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
+import { StatusLine, type StatusTone } from '../components/StatusLine'
+import {
+  blunderArrowColor,
+  blunderSquareStyle,
+  boardSize,
+  boardThemeOptions,
+} from '../components/boardTheme'
 import { sideToMoveFromFen } from '../lib/sideToMove'
 import { db } from '../db'
 import {
@@ -140,8 +149,8 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
   if (!queue.length) {
     return (
       <section className="space-y-4">
-        <h1 className="text-3xl font-bold">Review</h1>
-        <p className="text-base-content/80">No unreviewed blunders — nice work, or import more games.</p>
+        <h1 className="font-display text-[22px] leading-none font-bold">Review</h1>
+        <p className="text-base-content/70">No unreviewed blunders — nice work, or import more games.</p>
       </section>
     )
   }
@@ -152,45 +161,111 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-3xl font-bold">Review</h1>
-      <p className="text-base-content/70 text-sm">
-        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, t = show/hide threats, Esc = blur field.
-      </p>
-      <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(280px,1.2fr)]">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <h1 className="font-display text-[22px] leading-none font-bold">Review</h1>
+        <p className="font-mono text-[13px] text-base-content/60">
+          <span className="font-semibold text-base-content">{idx + 1}</span> / {queue.length}
+        </p>
+        <QueueProgress index={idx} total={queue.length} />
+      </div>
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
         <ReviewBoard
           key={current.id}
           fenBefore={current.fenBefore}
           blunderSan={current.moveSan}
           blunderThresholdPawns={blunderThresholdPawns}
+          evalBefore={current.evalBefore}
+          evalAfter={current.evalAfter}
         />
-        <div className="flex flex-col gap-4">
-          <p>
-            <strong>Eval:</strong> {current.evalBefore.toFixed(2)} → {current.evalAfter.toFixed(2)}{' '}
-            {`(Δ ${(current.evalAfter - current.evalBefore).toFixed(2)} from White's perspective)`}
-          </p>
-          <p>
-            <strong>Your move:</strong> <code className="text-primary">{current.moveSan}</code>
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn btn-outline btn-sm" onClick={() => go(-1)} disabled={idx <= 0}>
+        <div className="panel divide-y divide-base-300">
+          <div className="grid grid-cols-2 gap-4 p-4">
+            <div>
+              <p className="eyebrow mb-2.5">Your move</p>
+              <p className="font-mono text-3xl leading-none font-semibold text-error">
+                {current.moveSan}
+              </p>
+            </div>
+            <div>
+              <p className="eyebrow mb-2.5">Eval</p>
+              <p className="font-mono text-xl leading-tight font-medium">
+                {current.evalBefore.toFixed(2)} →{' '}
+                <span className="text-error">{current.evalAfter.toFixed(2)}</span>
+              </p>
+              <p className="mt-1 font-mono text-xs text-base-content/60">
+                {`Δ ${(current.evalAfter - current.evalBefore).toFixed(2)} from White's perspective`}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-[1fr_1fr_2fr]">
+            <button type="button" className="btn btn-outline" onClick={() => go(-1)} disabled={idx <= 0}>
               Previous
             </button>
             <button
               type="button"
-              className="btn btn-outline btn-sm"
+              className="btn btn-outline"
               onClick={() => go(1)}
               disabled={idx >= queue.length - 1}
             >
               Next
             </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => void toggleReviewed()}>
+            <button
+              type="button"
+              className="btn btn-primary col-span-2 row-start-1 sm:col-span-1 sm:row-auto"
+              onClick={() => void toggleReviewed()}
+            >
               Mark as reviewed
             </button>
-            <button type="button" className="btn btn-error btn-sm btn-outline" onClick={() => void deleteCurrent()}>
-              Delete
-            </button>
           </div>
-          <div className="flex flex-wrap gap-4">
+          <div className="p-4">
+            <CommentField
+              key={current.id}
+              initialComment={current.comment}
+              onSave={(t) => void saveComment(t)}
+            />
+          </div>
+          <div className="p-4">
+            <p className="eyebrow mb-2.5">Tags</p>
+            <div className="flex flex-wrap gap-2">
+              {(tags ?? []).map((t) =>
+                t.id != null ? (
+                  <label
+                    key={t.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-selector border border-base-content/20 px-2.5 py-1.5 font-mono text-[12.5px] has-checked:border-primary has-checked:bg-primary/10"
+                  >
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-xs"
+                      checked={selectedTagIds?.includes(t.id) ?? false}
+                      onChange={() => void toggleTag(t.id!)}
+                    />
+                    {t.name}
+                  </label>
+                ) : null,
+              )}
+            </div>
+            <form
+              className="mt-3 flex max-w-xs items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const fd = new FormData(e.currentTarget)
+                const name = String(fd.get('newtag') ?? '')
+                void addNewTag(name).then(() => {
+                  e.currentTarget.reset()
+                })
+              }}
+            >
+              <input
+                name="newtag"
+                placeholder="New tag"
+                aria-label="New tag"
+                className="input input-sm min-w-0 flex-1"
+              />
+              <button type="submit" className="btn btn-outline btn-sm">
+                Add
+              </button>
+            </form>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 p-4 text-sm">
             <a
               href={lichessAnalysisUrl(current.fenBefore)}
               target="_blank"
@@ -204,58 +279,19 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
                 Open game
               </a>
             ) : null}
-          </div>
-          <CommentField
-            key={current.id}
-            initialComment={current.comment}
-            onSave={(t) => void saveComment(t)}
-          />
-          <div>
-            <strong>Tags</strong>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(tags ?? []).map((t) =>
-                t.id != null ? (
-                  <label
-                    key={t.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-full border border-base-300 bg-base-200 px-3 py-1.5 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      className="checkbox checkbox-primary checkbox-sm"
-                      checked={selectedTagIds?.includes(t.id) ?? false}
-                      onChange={() => void toggleTag(t.id!)}
-                    />
-                    {t.name}
-                  </label>
-                ) : null,
-              )}
-            </div>
-            <form
-              className="mt-3 flex flex-wrap items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const fd = new FormData(e.currentTarget)
-                const name = String(fd.get('newtag') ?? '')
-                void addNewTag(name).then(() => {
-                  e.currentTarget.reset()
-                })
-              }}
+            <button
+              type="button"
+              className="btn btn-error btn-outline btn-sm ml-auto"
+              onClick={() => void deleteCurrent()}
             >
-              <input
-                name="newtag"
-                placeholder="New tag"
-                className="input input-bordered input-sm w-full max-w-xs"
-              />
-              <button type="submit" className="btn btn-primary btn-sm">
-                Add
-              </button>
-            </form>
+              Delete
+            </button>
           </div>
-          <p className="text-base-content/70 text-sm">
-            {idx + 1} / {queue.length}
-          </p>
         </div>
       </div>
+      <p className="hidden font-mono text-xs text-base-content/60 md:block">
+        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, t = show/hide threats, Esc = blur field.
+      </p>
     </section>
   )
 }
@@ -266,17 +302,21 @@ const OTHER_REPLY_ARROW_COLOR = 'rgb(248, 113, 113)'
 
 type MoveFeedback = {
   text: string
-  tone: 'success' | 'error' | 'warning' | 'neutral'
+  tone: StatusTone
 }
 
 function ReviewBoard({
   fenBefore,
   blunderSan,
   blunderThresholdPawns,
+  evalBefore,
+  evalAfter,
 }: {
   fenBefore: string
   blunderSan: string
   blunderThresholdPawns: number
+  evalBefore: number
+  evalAfter: number
 }) {
   const engineState = useStockfish()
   const [boardFen, setBoardFen] = useState(fenBefore)
@@ -287,6 +327,17 @@ function ReviewBoard({
   const analysisGenRef = useRef(0)
   const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
   const sideToMove = sideToMoveFromFen(boardFen)
+
+  // Display only: the squares of the move that was the blunder in the game.
+  const blunderSquares = useMemo(() => {
+    try {
+      const move = new Chess(fenBefore).move(blunderSan.replace(/[?!]+$/, ''))
+      return { from: move.from, to: move.to }
+    } catch {
+      return null
+    }
+  }, [fenBefore, blunderSan])
+  const showBlunder = blunderSquares != null && boardFen === fenBefore
 
   const resetBoard = useCallback(() => {
     setBoardFen(fenBefore)
@@ -397,66 +448,93 @@ function ReviewBoard({
     return () => window.removeEventListener('keydown', onKey)
   }, [hasThreats])
 
-  const feedbackClass =
-    feedback?.tone === 'success'
-      ? 'text-success font-medium'
-      : feedback?.tone === 'warning'
-        ? 'text-warning font-medium'
-        : feedback?.tone === 'error'
-          ? 'text-error font-medium'
-          : 'text-base-content/80'
-
   return (
-    <div className="flex flex-col items-center gap-2">
-      <SideToMoveBadge side={sideToMove} />
-      {engineState === 'loading' ? (
-        <p className="text-base-content/70 text-sm">Loading Stockfish (~1.8 MB)…</p>
-      ) : engineState === 'error' ? (
-        <p className="text-error text-sm">Stockfish could not load.</p>
-      ) : null}
-      {feedback ? (
-        <p className={`max-w-md text-center text-sm ${feedbackClass}`} role="status">
-          {feedback.text}
-          {threatsShown && hasThreats ? ` ${formatThreats(replies)}` : ''}
-        </p>
-      ) : engineState === 'ready' ? (
-        <p className="max-w-md text-center text-base-content/60 text-sm">
-          Play your move — Stockfish will rate it against the engine line.
-        </p>
-      ) : null}
-      {hasThreats ? (
-        <button
-          type="button"
-          className="btn btn-error btn-outline btn-xs"
-          aria-pressed={threatsShown}
-          onClick={() => setThreatsShown((shown) => !shown)}
-        >
-          {threatsShown ? 'Hide threats' : 'Show threats'}
-        </button>
-      ) : null}
-      <div
-        className="rounded-box border border-base-300 bg-base-100 p-4 shadow-lg"
-        style={{ width: boardSize(), maxWidth: '100%' }}
-      >
-        <Chessboard
-          options={{
-            position: boardFen,
-            arrows: replyArrows,
-            boardOrientation: startOrientation,
-            allowDragging: engineState === 'ready' && !analyzing,
-            canDragPiece: ({ piece }) => {
-              const chess = new Chess(boardFen)
-              const turn = chess.turn() === 'w' ? 'w' : 'b'
-              return piece.pieceType.startsWith(turn)
-            },
-            onPieceDrop,
-          }}
-        />
+    <div className="flex flex-col gap-2.5" style={{ width: boardSize() + 24, maxWidth: '100%' }}>
+      <div className="flex gap-2.5">
+        <EvalBar evalBefore={evalBefore} evalAfter={evalAfter} orientation={startOrientation} />
+        <div className="min-w-0 flex-1">
+          <Chessboard
+            options={{
+              ...boardThemeOptions,
+              position: boardFen,
+              boardOrientation: startOrientation,
+              allowDragging: engineState === 'ready' && !analyzing,
+              canDragPiece: ({ piece }) => {
+                const chess = new Chess(boardFen)
+                const turn = chess.turn() === 'w' ? 'w' : 'b'
+                return piece.pieceType.startsWith(turn)
+              },
+              onPieceDrop,
+              arrows: showBlunder
+                ? [
+                    {
+                      startSquare: blunderSquares.from,
+                      endSquare: blunderSquares.to,
+                      color: blunderArrowColor,
+                    },
+                  ]
+                : replyArrows,
+              squareStyles: showBlunder
+                ? {
+                    [blunderSquares.from]: blunderSquareStyle,
+                    [blunderSquares.to]: blunderSquareStyle,
+                  }
+                : {},
+            }}
+          />
+        </div>
       </div>
-      <button type="button" className="btn btn-outline btn-sm" onClick={resetBoard}>
-        Reset board
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 pl-6">
+        <SideToMoveBadge side={sideToMove} />
+        <EngineStatus state={engineState} />
+        {hasThreats ? (
+          <button
+            type="button"
+            className="btn btn-error btn-outline btn-sm"
+            aria-pressed={threatsShown}
+            onClick={() => setThreatsShown((shown) => !shown)}
+          >
+            {threatsShown ? 'Hide threats' : 'Show threats'}
+          </button>
+        ) : null}
+        <button type="button" className="btn btn-outline btn-sm" onClick={resetBoard}>
+          Reset board
+        </button>
+      </div>
+      <div className="pl-6">
+        {feedback ? (
+          <StatusLine tone={feedback.tone}>
+            {feedback.text}
+            {threatsShown && hasThreats ? ` ${formatThreats(replies)}` : ''}
+          </StatusLine>
+        ) : engineState === 'ready' ? (
+          <StatusLine tone="neutral">
+            Play your move — Stockfish will rate it against the engine line.
+          </StatusLine>
+        ) : null}
+      </div>
     </div>
+  )
+}
+
+function EngineStatus({ state }: { state: 'loading' | 'ready' | 'error' }) {
+  const dot =
+    state === 'ready' ? 'bg-success' : state === 'error' ? 'bg-error' : 'animate-pulse bg-warning'
+  const text =
+    state === 'ready'
+      ? 'Stockfish ready'
+      : state === 'error'
+        ? 'Stockfish could not load.'
+        : 'Loading Stockfish (~1.8 MB)…'
+  return (
+    <span
+      className={`inline-flex items-center gap-2 font-mono text-[11.5px] ${
+        state === 'error' ? 'text-error' : 'text-base-content/60'
+      }`}
+    >
+      <span aria-hidden="true" className={`size-2 rounded-full ${dot}`} />
+      {text}
+    </span>
   )
 }
 
@@ -469,12 +547,10 @@ function CommentField({
 }) {
   const [text, setText] = useState(initialComment)
   return (
-    <label className="form-control w-full">
-      <span className="label">
-        <span className="label-text">Note</span>
-      </span>
+    <label className="block">
+      <span className="eyebrow mb-2.5 block">Note</span>
       <textarea
-        className="textarea textarea-bordered min-h-28 w-full"
+        className="textarea min-h-24 w-full text-sm"
         rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -482,9 +558,4 @@ function CommentField({
       />
     </label>
   )
-}
-
-function boardSize() {
-  if (typeof window === 'undefined') return 480
-  return Math.min(520, Math.floor(window.innerWidth - 64))
 }
