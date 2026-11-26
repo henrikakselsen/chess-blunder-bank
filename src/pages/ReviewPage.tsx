@@ -324,6 +324,7 @@ function ReviewBoard({
   const [analyzing, setAnalyzing] = useState(false)
   const [replies, setReplies] = useState<OpponentReply[]>([])
   const [threatsShown, setThreatsShown] = useState(false)
+  const [guessFeedback, setGuessFeedback] = useState<MoveFeedback | null>(null)
   const analysisGenRef = useRef(0)
   const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
   const sideToMove = sideToMoveFromFen(boardFen)
@@ -344,6 +345,7 @@ function ReviewBoard({
     setFeedback(null)
     setReplies([])
     setThreatsShown(false)
+    setGuessFeedback(null)
     setAnalyzing(false)
     analysisGenRef.current += 1
   }, [fenBefore])
@@ -361,8 +363,28 @@ function ReviewBoard({
         })
         return false
       }
+      if (boardFen !== fenBefore && replies.length > 0 && !threatsShown) {
+        // Guess mode: the player drags an opponent piece to find a reply that punishes the move.
+        // The piece always goes back, so the arrows show the threats in the same position.
+        const guessBoard = new Chess(boardFen)
+        try {
+          guessBoard.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
+        } catch {
+          setGuessFeedback({ text: 'Illegal move — try again.', tone: 'error' })
+          return false
+        }
+        const hit = replies.find((r) => r.from === sourceSquare && r.to === targetSquare)
+        if (hit) {
+          setGuessFeedback({ text: `Correct — ${hit.san} punishes your move.`, tone: 'success' })
+          setThreatsShown(true)
+        } else {
+          setGuessFeedback({ text: 'Not a reply that punishes your move — try again.', tone: 'error' })
+        }
+        return false
+      }
       if (boardFen !== fenBefore) {
-        setFeedback({
+        // Show this on the guess line, so that the verdict text stays.
+        setGuessFeedback({
           text: 'Reset the board to try another move from the starting position.',
           tone: 'error',
         })
@@ -390,6 +412,7 @@ function ReviewBoard({
       const gen = ++analysisGenRef.current
       setReplies([])
       setThreatsShown(false)
+      setGuessFeedback(null)
       setAnalyzing(true)
       setFeedback({ text: 'Analyzing with Stockfish…', tone: 'neutral' })
 
@@ -419,7 +442,16 @@ function ReviewBoard({
 
       return false
     },
-    [analyzing, blunderSan, blunderThresholdPawns, boardFen, engineState, fenBefore],
+    [
+      analyzing,
+      blunderSan,
+      blunderThresholdPawns,
+      boardFen,
+      engineState,
+      fenBefore,
+      replies,
+      threatsShown,
+    ],
   )
 
   const replyArrows = useMemo<Arrow[]>(
@@ -435,18 +467,24 @@ function ReviewBoard({
   )
   const hasThreats = replies.length > 0
 
+  /** Shows or hides the threats. An old guess result no longer applies after this. */
+  const toggleThreats = useCallback(() => {
+    setThreatsShown((shown) => !shown)
+    setGuessFeedback(null)
+  }, [])
+
   useEffect(() => {
     if (!hasThreats) return
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === 't') {
         e.preventDefault()
-        setThreatsShown((shown) => !shown)
+        toggleThreats()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [hasThreats])
+  }, [hasThreats, toggleThreats])
 
   return (
     <div className="flex flex-col gap-2.5" style={{ width: boardSize() + 24, maxWidth: '100%' }}>
@@ -492,7 +530,7 @@ function ReviewBoard({
             type="button"
             className="btn btn-error btn-outline btn-sm"
             aria-pressed={threatsShown}
-            onClick={() => setThreatsShown((shown) => !shown)}
+            onClick={toggleThreats}
           >
             {threatsShown ? 'Hide threats' : 'Show threats'}
           </button>
@@ -510,6 +548,13 @@ function ReviewBoard({
         ) : engineState === 'ready' ? (
           <StatusLine tone="neutral">
             Play your move — Stockfish will rate it against the engine line.
+          </StatusLine>
+        ) : null}
+        {guessFeedback ? (
+          <StatusLine tone={guessFeedback.tone}>{guessFeedback.text}</StatusLine>
+        ) : hasThreats && !threatsShown ? (
+          <StatusLine tone="neutral">
+            Find a reply that punishes your move — drag one of the opponent&apos;s pieces.
           </StatusLine>
         ) : null}
       </div>
