@@ -40,6 +40,8 @@ A **cloud agent** can work against the same codebase in a **remote Git** repo (G
 
 **Note:** IndexedDB data in the app lives **only in the browser** you use to open the app; it is not synced via Git.
 
+The browser stores the data per origin (protocol, host and port). For this reason, `npm run dev` and `npm run preview` always use http://localhost:5173/. If the port is in use, Vite stops with an error. Stop the other server (for example from another worktree) and start again. Do not change the port, because then the app opens with an empty database.
+
 ## Review engine
 
 Review uses **Stockfish 19 (lite, WASM)** in a Web Worker. On first visit to Review, the browser downloads about 1.8 MB from `/stockfish/`. `npm install` copies the engine into `public/stockfish/` via `postinstall`.
