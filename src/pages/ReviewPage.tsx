@@ -22,7 +22,7 @@ import {
   listTagsOrdered,
   setMistakeTags,
 } from '../db/tags'
-import { toggleInstructive, useInstructiveKeys } from '../db/instructive'
+import { removeInstructive, toggleInstructive, useInstructiveKeys } from '../db/instructive'
 import type { MistakeRow } from '../db/schema'
 import { positionKey, selectInstructive } from '../lib/instructive'
 import { analyzeReviewMove } from '../lib/engine/reviewMoveAnalysis'
@@ -192,7 +192,7 @@ function ReviewSession({
         e.preventDefault()
         void toggleReviewed()
       }
-      if (e.key === 'i') {
+      if (e.key === 'i' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         void toggleStar()
       }
@@ -210,6 +210,7 @@ function ReviewSession({
     if (!current?.id) return
     if (!window.confirm('Delete this position permanently?')) return
     await db.mistakeTags.where('mistakeId').equals(current.id).delete()
+    await removeInstructive('mistake', current.gameId, current.ply)
     await db.mistakes.delete(current.id)
   }
 

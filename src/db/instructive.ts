@@ -29,3 +29,12 @@ export async function toggleInstructive(
     }
   })
 }
+
+/** Removes the star, if there is one. Use it when the position is deleted. */
+export async function removeInstructive(
+  kind: InstructiveKind,
+  gameId: string,
+  ply: number,
+): Promise<void> {
+  await db.instructiveMarks.where('[kind+gameId+ply]').equals([kind, gameId, ply]).delete()
+}

@@ -41,8 +41,8 @@ function MateTrainingSession({
   starred: Set<string>
 }) {
   const [filter, setFilter] = useState<MateFilter>('all')
-  // Rows that had a star when this session started or got one later.
-  // They stay in the "Instructive" session after the user removes the star.
+  // Rows whose star the user changed in this "Instructive" session.
+  // They stay in the queue after the user removes the star.
   const [stickyIds, setStickyIds] = useState<Set<number>>(() => new Set())
 
   const changeFilter = useCallback((next: MateFilter) => {
@@ -350,7 +350,7 @@ function MatePuzzleBoard({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'i') {
+      if (e.key === 'i' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         onToggleStar()
       }
