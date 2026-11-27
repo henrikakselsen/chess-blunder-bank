@@ -64,3 +64,17 @@ export interface MissedMateRow {
   reviewedAt?: number
   createdAt: number
 }
+
+export type InstructiveKind = 'mistake' | 'mate'
+
+/**
+ * A star on a position that is "instructive". The row refers to the game and the ply,
+ * not to the row id, so the star stays when the same game is imported again.
+ */
+export interface InstructiveMarkRow {
+  id?: number
+  kind: InstructiveKind
+  gameId: string
+  ply: number
+  createdAt: number
+}

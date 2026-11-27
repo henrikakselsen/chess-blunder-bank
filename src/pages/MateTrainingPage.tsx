@@ -5,11 +5,14 @@ import { Chessboard } from 'react-chessboard'
 import type { PieceDropHandlerArgs } from 'react-chessboard'
 import { QueueProgress } from '../components/QueueProgress'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
+import { StarButton } from '../components/StarButton'
 import { StatusLine } from '../components/StatusLine'
 import { boardSize, boardThemeOptions } from '../components/boardTheme'
 import { sideToMoveFromFen } from '../lib/sideToMove'
 import { db } from '../db'
+import { toggleInstructive, useInstructiveKeys } from '../db/instructive'
 import type { MissedMateRow } from '../db/schema'
+import { positionKey, selectInstructive } from '../lib/instructive'
 import { lichessAnalysisUrl } from '../lib/lichessUrl'
 import {
   clearMateTrainingSession,
@@ -23,20 +26,45 @@ import {
 import { shuffleInPlace } from '../lib/shuffle'
 
 export function MateTrainingPage() {
-  const unreviewed = useLiveQuery(
-    () => db.missedMates.filter((m) => m.reviewed === false).toArray(),
-    [],
-  )
+  const all = useLiveQuery(() => db.missedMates.toArray(), [])
+  const starred = useInstructiveKeys('mate')
 
-  return <MateTrainingSession items={unreviewed ?? []} />
+  if (!all || !starred) return null
+  return <MateTrainingSession items={all} starred={starred} />
 }
 
-function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
+function MateTrainingSession({
+  items,
+  starred,
+}: {
+  items: MissedMateRow[]
+  starred: Set<string>
+}) {
   const [filter, setFilter] = useState<MateFilter>('all')
+  // Rows whose star the user changed in this "Instructive" session.
+  // They stay in the queue after the user removes the star.
+  const [stickyIds, setStickyIds] = useState<Set<number>>(() => new Set())
 
-  const filtered = useMemo(
-    () => items.filter((m) => filter === 'all' || m.mateIn === filter),
-    [items, filter],
+  const changeFilter = useCallback((next: MateFilter) => {
+    setFilter(next)
+    setStickyIds(new Set())
+  }, [])
+
+  const filtered = useMemo(() => {
+    // The instructive session shows reviewed rows too, and does not change their status.
+    if (filter === 'instructive') return selectInstructive(items, starred, stickyIds)
+    return items.filter((m) => !m.reviewed && (filter === 'all' || m.mateIn === filter))
+  }, [items, filter, starred, stickyIds])
+
+  const toggleStar = useCallback(
+    async (row: MissedMateRow) => {
+      if (filter === 'instructive' && row.id != null) {
+        const id = row.id
+        setStickyIds((prev) => new Set(prev).add(id))
+      }
+      await toggleInstructive('mate', row.gameId, row.ply)
+    },
+    [filter],
   )
 
   return (
@@ -47,24 +75,38 @@ function MateTrainingSession({ items }: { items: MissedMateRow[] }) {
         Drag the correct move on the board. Failed positions return in a repetition round.
       </p>
       <div className="flex flex-wrap gap-2">
-        <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>
+        <FilterButton active={filter === 'all'} onClick={() => changeFilter('all')}>
           All
         </FilterButton>
-        <FilterButton active={filter === 1} onClick={() => setFilter(1)}>
+        <FilterButton active={filter === 1} onClick={() => changeFilter(1)}>
           Mate in 1
         </FilterButton>
-        <FilterButton active={filter === 2} onClick={() => setFilter(2)}>
+        <FilterButton active={filter === 2} onClick={() => changeFilter(2)}>
           Mate in 2
+        </FilterButton>
+        <FilterButton
+          active={filter === 'instructive'}
+          onClick={() => changeFilter('instructive')}
+        >
+          ★ Instructive
         </FilterButton>
       </div>
       {filtered.length === 0 ? (
         <p className="text-base-content/70">
-          No unreviewed missed mates
-          {filter === 'all' ? '' : filter === 1 ? ' in 1' : ' in 2'} — import analysed games on
-          Import.
+          {filter === 'instructive'
+            ? 'No instructive mates yet. Press ★ (or i) on a puzzle to save it here.'
+            : `No unreviewed missed mates${
+                filter === 'all' ? '' : filter === 1 ? ' in 1' : ' in 2'
+              } — import analysed games on Import.`}
         </p>
       ) : (
-        <MatePuzzle key={filter} filter={filter} sourceQueue={filtered} />
+        <MatePuzzle
+          key={filter}
+          filter={filter}
+          sourceQueue={filtered}
+          starred={starred}
+          onToggleStar={toggleStar}
+        />
       )}
     </section>
   )
@@ -93,9 +135,13 @@ function FilterButton({
 function MatePuzzle({
   filter,
   sourceQueue,
+  starred,
+  onToggleStar,
 }: {
   filter: MateFilter
   sourceQueue: MissedMateRow[]
+  starred: Set<string>
+  onToggleStar: (row: MissedMateRow) => Promise<void>
 }) {
   const [activeQueue, setActiveQueue] = useState(
     () => resolveInitialSession(filter, sourceQueue).activeQueue,
@@ -236,6 +282,8 @@ function MatePuzzle({
       idx={idx}
       queueLength={activeQueue.length}
       queuedCount={pendingRepeatIds.size}
+      starred={starred.has(positionKey(current.gameId, current.ply))}
+      onToggleStar={() => void onToggleStar(current)}
       onWrongMatingMove={() => {
         if (current.id != null) enqueueRepeat(current.id)
       }}
@@ -250,6 +298,8 @@ function MatePuzzleBoard({
   idx,
   queueLength,
   queuedCount,
+  starred,
+  onToggleStar,
   onWrongMatingMove,
   onPrev,
   onNext,
@@ -258,6 +308,8 @@ function MatePuzzleBoard({
   idx: number
   queueLength: number
   queuedCount: number
+  starred: boolean
+  onToggleStar: () => void
   onWrongMatingMove: () => void
   onPrev: () => void
   onNext: () => void
@@ -294,6 +346,18 @@ function MatePuzzleBoard({
       reviewedAt: next ? Date.now() : undefined,
     })
   }, [current.id, current.reviewed])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'i' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onToggleStar()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onToggleStar])
 
   const onPieceDrop = useCallback(
     ({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean => {
@@ -431,7 +495,7 @@ function MatePuzzleBoard({
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-[1fr_1fr_2fr]">
+        <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-[1fr_1fr_2fr_auto]">
           <button type="button" className="btn btn-outline" onClick={onPrev} disabled={idx <= 0}>
             Previous
           </button>
@@ -443,8 +507,9 @@ function MatePuzzleBoard({
             className="btn btn-primary col-span-2 row-start-1 sm:col-span-1 sm:row-auto"
             onClick={() => void toggleReviewed()}
           >
-            Mark as reviewed
+            {current.reviewed ? 'Mark as unreviewed' : 'Mark as reviewed'}
           </button>
+          <StarButton starred={starred} onClick={onToggleStar} />
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-2.5 p-4 text-sm">
           <a

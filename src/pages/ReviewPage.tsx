@@ -6,6 +6,7 @@ import type { Arrow, PieceDropHandlerArgs } from 'react-chessboard'
 import { EvalBar } from '../components/EvalBar'
 import { QueueProgress } from '../components/QueueProgress'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
+import { StarButton } from '../components/StarButton'
 import { StatusLine, type StatusTone } from '../components/StatusLine'
 import { VerdictCard } from '../components/VerdictCard'
 import {
@@ -22,7 +23,9 @@ import {
   listTagsOrdered,
   setMistakeTags,
 } from '../db/tags'
+import { removeInstructive, toggleInstructive, useInstructiveKeys } from '../db/instructive'
 import type { MistakeRow } from '../db/schema'
+import { positionKey, selectInstructive } from '../lib/instructive'
 import { analyzeReviewMove } from '../lib/engine/reviewMoveAnalysis'
 import type { OpponentReply, ReviewMoveVerdict } from '../lib/engine/types'
 import { sanToSquares, tintStyle, verdictDisplay } from '../lib/engine/verdictDisplay'
@@ -31,37 +34,107 @@ import { loadImportPreferences } from '../lib/importPreferences'
 import { lichessAnalysisUrl } from '../lib/lichessUrl'
 import { shuffleInPlace } from '../lib/shuffle'
 
+type ReviewMode = 'all' | 'instructive'
+
 export function ReviewPage() {
-  const unreviewed = useLiveQuery(
-    () => db.mistakes.filter((m) => m.reviewed === false).toArray(),
-    [],
-  )
+  const [mode, setMode] = useState<ReviewMode>('all')
+  const allMistakes = useLiveQuery(() => db.mistakes.toArray(), [])
+  const starred = useInstructiveKeys('mistake')
 
-  const idSignature = useMemo(() => {
-    const ids = (unreviewed ?? []).map((m) => m.id).filter((n): n is number => n != null)
+  const source = useMemo(() => {
+    if (!allMistakes) return undefined
+    if (mode === 'all') return allMistakes.filter((m) => m.reviewed === false)
+    if (!starred) return undefined
+    return selectInstructive(allMistakes, starred, new Set())
+  }, [allMistakes, mode, starred])
+
+  // "All" restarts when the set of unreviewed rows changes (as before).
+  // "Instructive" keeps its queue for the full session, also when a star is removed.
+  const sessionKey = useMemo(() => {
+    if (mode === 'instructive') return 'instructive'
+    const ids = (source ?? []).map((m) => m.id).filter((n): n is number => n != null)
     ids.sort((a, b) => a - b)
-    return ids.join(',')
-  }, [unreviewed])
+    return `all:${ids.join(',')}`
+  }, [mode, source])
 
-  return <ReviewSession key={idSignature} mistakes={unreviewed ?? []} />
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Review mode">
+        <ModeButton active={mode === 'all'} onClick={() => setMode('all')}>
+          All unreviewed
+        </ModeButton>
+        <ModeButton active={mode === 'instructive'} onClick={() => setMode('instructive')}>
+          ★ Instructive
+        </ModeButton>
+      </div>
+      {source && allMistakes && starred ? (
+        <ReviewSession
+          key={sessionKey}
+          mode={mode}
+          initialRows={source}
+          allRows={allMistakes}
+          starred={starred}
+        />
+      ) : null}
+    </div>
+  )
 }
 
-function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline'}`}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
+function ReviewSession({
+  mode,
+  initialRows,
+  allRows,
+  starred,
+}: {
+  mode: ReviewMode
+  /** Rows for the queue. The queue order is fixed when the session starts. */
+  initialRows: MistakeRow[]
+  /** All rows, so the current position always shows fresh data. */
+  allRows: MistakeRow[]
+  starred: Set<string>
+}) {
   const blunderThresholdPawns = useMemo(
     () => loadImportPreferences().evalThresholdPawns,
     [],
   )
 
-  const queue = useMemo(() => {
-    const list = [...mistakes]
-    const ids = list.map((m) => m.id!).filter((n): n is number => n != null)
+  const [queueIds] = useState(() => {
+    const ids = initialRows.map((m) => m.id).filter((n): n is number => n != null)
     shuffleInPlace(ids)
-    const byId = new Map(list.map((m) => [m.id!, m]))
-    return ids.map((id) => byId.get(id)!).filter(Boolean)
-  }, [mistakes])
+    return ids
+  })
+
+  const queue = useMemo(() => {
+    const byId = new Map(allRows.map((m) => [m.id, m]))
+    return queueIds.map((id) => byId.get(id)).filter((m): m is MistakeRow => m != null)
+  }, [allRows, queueIds])
 
   const [idx, setIdx] = useState(0)
-  const current = queue[idx] ?? null
+  // A deleted row makes the queue shorter, so keep the position in range.
+  const pos = Math.min(idx, Math.max(0, queue.length - 1))
+  const current = queue[pos] ?? null
+  const isStarred = current != null && starred.has(positionKey(current.gameId, current.ply))
 
   const tags = useLiveQuery(() => listTagsOrdered(), [])
 
@@ -76,7 +149,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
   const go = useCallback(
     (delta: number) => {
       setIdx((i) => {
-        const next = i + delta
+        const next = Math.min(i, Math.max(0, queue.length - 1)) + delta
         if (next < 0) return 0
         if (!queue.length) return 0
         if (next >= queue.length) return queue.length - 1
@@ -93,6 +166,11 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
       reviewed: next,
       reviewedAt: next ? Date.now() : undefined,
     })
+  }, [current])
+
+  const toggleStar = useCallback(async () => {
+    if (!current) return
+    await toggleInstructive('mistake', current.gameId, current.ply)
   }, [current])
 
   useEffect(() => {
@@ -115,10 +193,14 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
         e.preventDefault()
         void toggleReviewed()
       }
+      if (e.key === 'i' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        void toggleStar()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, toggleReviewed])
+  }, [go, toggleReviewed, toggleStar])
 
   async function saveComment(text: string) {
     if (!current?.id) return
@@ -129,6 +211,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
     if (!current?.id) return
     if (!window.confirm('Delete this position permanently?')) return
     await db.mistakeTags.where('mistakeId').equals(current.id).delete()
+    await removeInstructive('mistake', current.gameId, current.ply)
     await db.mistakes.delete(current.id)
   }
 
@@ -151,7 +234,11 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
     return (
       <section className="space-y-4">
         <h1 className="font-display text-[22px] leading-none font-bold">Review</h1>
-        <p className="text-base-content/70">No unreviewed blunders — nice work, or import more games.</p>
+        <p className="text-base-content/70">
+          {mode === 'instructive'
+            ? 'No instructive positions yet. Press ★ (or i) on a position to save it here.'
+            : 'No unreviewed blunders — nice work, or import more games.'}
+        </p>
       </section>
     )
   }
@@ -165,9 +252,9 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <h1 className="font-display text-[22px] leading-none font-bold">Review</h1>
         <p className="font-mono text-[13px] text-base-content/60">
-          <span className="font-semibold text-base-content">{idx + 1}</span> / {queue.length}
+          <span className="font-semibold text-base-content">{pos + 1}</span> / {queue.length}
         </p>
-        <QueueProgress index={idx} total={queue.length} />
+        <QueueProgress index={pos} total={queue.length} />
       </div>
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
         <ReviewBoard
@@ -199,15 +286,15 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-[1fr_1fr_2fr]">
-            <button type="button" className="btn btn-outline" onClick={() => go(-1)} disabled={idx <= 0}>
+          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-[1fr_1fr_2fr_auto]">
+            <button type="button" className="btn btn-outline" onClick={() => go(-1)} disabled={pos <= 0}>
               Previous
             </button>
             <button
               type="button"
               className="btn btn-outline"
               onClick={() => go(1)}
-              disabled={idx >= queue.length - 1}
+              disabled={pos >= queue.length - 1}
             >
               Next
             </button>
@@ -216,8 +303,9 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
               className="btn btn-primary col-span-2 row-start-1 sm:col-span-1 sm:row-auto"
               onClick={() => void toggleReviewed()}
             >
-              Mark as reviewed
+              {current.reviewed ? 'Mark as unreviewed' : 'Mark as reviewed'}
             </button>
+            <StarButton starred={isStarred} onClick={() => void toggleStar()} />
           </div>
           <div className="p-4">
             <CommentField
@@ -293,7 +381,7 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
         </div>
       </div>
       <p className="hidden font-mono text-xs text-base-content/60 md:block">
-        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, t = show/hide threats, Esc = blur field.
+        Shortcuts: arrow keys or p/n = previous/next, r or Enter = mark reviewed, i = instructive, t = show/hide threats, Esc = blur field.
       </p>
     </section>
   )

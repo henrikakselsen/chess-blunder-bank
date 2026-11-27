@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import type {
   ImportBatchRow,
   ImportedGameRow,
+  InstructiveMarkRow,
   MissedMateRow,
   MistakeRow,
   MistakeTagRow,
@@ -16,6 +17,7 @@ export class BlunderBankDB extends Dexie {
   mistakeTags!: EntityTable<MistakeTagRow, 'id'>
   missedMates!: EntityTable<MissedMateRow, 'id'>
   importBatches!: EntityTable<ImportBatchRow, 'id'>
+  instructiveMarks!: EntityTable<InstructiveMarkRow, 'id'>
 
   constructor() {
     super('chess-learning-v1')
@@ -39,6 +41,16 @@ export class BlunderBankDB extends Dexie {
       mistakeTags: '++id, [mistakeId+tagId], mistakeId, tagId',
       missedMates: '++id, gameId, mateIn, reviewed, createdAt',
       importBatches: '++id, importedAt',
+    })
+    this.version(4).stores({
+      importedGames: 'gameId, importedAt',
+      mistakes: '++id, gameId, reviewed, createdAt',
+      tags: '++id, &name',
+      mistakeTags: '++id, [mistakeId+tagId], mistakeId, tagId',
+      missedMates: '++id, gameId, mateIn, reviewed, createdAt',
+      importBatches: '++id, importedAt',
+      // Not cleared by re-import or "Replace all", so stars survive.
+      instructiveMarks: '++id, &[kind+gameId+ply], kind',
     })
   }
 }
