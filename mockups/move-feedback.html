@@ -1,0 +1,300 @@
+<title>Move Verdict Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: one verdict switcher on top; today's line, then three directions, each a board + feedback panel like the Review page. */
+:root{
+  color-scheme:dark;
+  /* app theme "analysis" (src/index.css) */
+  --b100:#1d2125;--b200:#16191c;--b300:#2b3137;--ink:#e7eaec;--muted:#8e989f;
+  --amber:#f0b23e;--success:#5fc58c;--warning:#f0b23e;--error:#f0705f;--info:#7fb4d6;
+  /* verdict scale */
+  --v-best:#5fc58c;--v-good:#9fd27a;--v-inacc:#f0b23e;--v-mistake:#f08a4b;--v-blunder:#f0705f;
+  --sq-light:#c9ccc6;--sq-dark:#6f7f86;
+  --display:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;
+  --sans:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--b200);color:var(--ink);font:15px/1.5 var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 56px}
+h1,h2,h3,p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:28px}
+.eyebrow{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+header{display:grid;gap:10px}
+header h1{font:700 clamp(26px,4vw,38px)/1.1 var(--display);text-wrap:balance}
+header p{color:var(--muted);max-width:68ch}
+
+/* switcher */
+.switch{display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--b200);padding-block:10px}
+@media (max-width:760px){.switch{flex-wrap:nowrap;overflow-x:auto}.switch button{flex:none}}
+.switch button{font:500 13px/1 var(--mono);padding:9px 12px;border:1px solid var(--b300);background:var(--b100);color:var(--ink);border-radius:3px;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+.switch button[aria-pressed="true"]{border-color:currentColor;box-shadow:inset 0 0 0 1px currentColor}
+.switch button:focus-visible,.btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+
+section.dir{display:grid;gap:12px}
+.dir-head{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline}
+.dir-head h2{font:700 19px/1.3 var(--display)}
+.dir-head p{color:var(--muted);font-size:14px}
+.panel{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:24px;background:var(--b100);border:1px solid var(--b300);border-radius:4px;padding:20px}
+@media (max-width:760px){.panel{grid-template-columns:1fr;padding:14px}}
+.side{display:grid;gap:12px;align-content:start;min-width:0}
+
+/* board */
+.board{position:relative;width:100%;max-width:360px;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);border:1px solid var(--b300);user-select:none}
+.sq{position:relative;display:grid;place-items:center;font-size:clamp(22px,4.6vw,34px);line-height:1}
+.sq.l{background:var(--sq-light)}.sq.d{background:var(--sq-dark)}
+.pc.w{color:#fafafa;text-shadow:0 0 1px #111,0 0 1px #111,0 1px 1px #111}
+.pc.b{color:#15181b}
+.sq .tint{position:absolute;inset:0;pointer-events:none}
+.badge{position:absolute;top:-9px;right:-9px;z-index:3;min-width:22px;height:22px;padding:0 4px;border-radius:11px;display:grid;place-items:center;font:700 12px/1 var(--mono);color:#111;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.board svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.coord{position:absolute;font:600 9px/1 var(--mono);opacity:.7}
+
+/* shared bits */
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:600 13px/1 var(--sans);min-height:34px;padding:0 12px;border-radius:3px;border:1px solid var(--b300);background:var(--b200);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#1a1404}
+.san{font:600 1em/1 var(--mono)}
+.statusline{border:1px solid var(--b300);border-left-width:3px;background:var(--b100);padding:10px 12px;font:13px/1.45 var(--mono)}
+.note{font-size:13px;color:var(--muted)}
+
+/* A: verdict card */
+.vcard{border-radius:4px;padding:16px 18px;display:grid;gap:10px;border:1px solid var(--vc);background:color-mix(in oklab,var(--vc) 13%,var(--b100))}
+.vtop{display:flex;align-items:center;gap:14px}
+.vsym{flex:none;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font:700 22px/1 var(--mono);background:var(--vc);color:#111}
+.vword{font:700 clamp(26px,4vw,34px)/1 var(--display);color:var(--vc);letter-spacing:-.01em}
+.vsub{font-size:14px;color:var(--ink)}
+.vfacts{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:500 12.5px/1 var(--mono);padding:7px 9px;border-radius:3px;background:var(--b200);border:1px solid var(--b300)}
+.chip b{font-weight:600}
+
+/* B: scale */
+.scale{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.step{display:grid;gap:6px;justify-items:center;text-align:center}
+.step .bar{height:12px;width:100%;border-radius:2px;background:var(--sc);opacity:.22}
+.step.on .bar{opacity:1;height:18px;box-shadow:0 0 0 2px var(--b100),0 0 0 4px var(--sc)}
+.step .lbl{font:500 11px/1.2 var(--mono);color:var(--muted)}
+.step.on .lbl{color:var(--sc);font-weight:600}
+.scale-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.scale-head .big{font:700 26px/1 var(--display)}
+.evalrow{display:grid;gap:6px}
+.evalbar{position:relative;height:26px;border-radius:3px;background:#15181b;overflow:hidden;border:1px solid var(--b300)}
+.evalbar .white{position:absolute;inset:0 auto 0 0;background:#e9ebe8;transition:width .4s ease}
+.evalbar .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--amber)}
+.evalbar .ghost{position:absolute;top:0;bottom:0;border-right:2px dashed var(--muted)}
+.evallbl{display:flex;justify-content:space-between;font:500 12px/1.2 var(--mono);color:var(--muted)}
+.evallbl b{color:var(--ink)}
+
+/* C: board-first */
+.cline{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cline .w{font:700 22px/1 var(--display)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:22px;height:3px;border-radius:2px}
+.flash{animation:flash .6s ease-out 1}
+@keyframes flash{from{filter:brightness(1.8)}to{filter:none}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}.evalbar .white{transition:none}}
+
+footer{color:var(--muted);font-size:13px;max-width:72ch;display:grid;gap:6px}
+footer code{font-family:var(--mono);font-size:12px}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Review board · move feedback</span>
+    <h1>Was my move good or bad?</h1>
+    <p>Today the verdict is one line of small mono text. These three directions make the verdict clear in one glance. Select a verdict to see each direction in that state. Position: Two Knights, White to move, engine eval +0.35 before the move.</p>
+  </header>
+
+  <nav class="switch" id="switch" aria-label="Verdict"></nav>
+
+  <section class="dir">
+    <div class="dir-head"><span class="eyebrow">Today</span><h2>Status line</h2><p>For comparison. The tone is only a 3 px left border.</p></div>
+    <div class="panel"><div class="board" id="b0"></div><div class="side" id="s0"></div></div>
+  </section>
+
+  <section class="dir">
+    <div class="dir-head"><span class="eyebrow">Selected · A + C</span><h2>Verdict card + verdict on the board</h2><p>The card gives the verdict. The board shows why: badge, your move, the best move and the threat.</p></div>
+    <div class="panel"><div class="board" id="bAC"></div><div class="side" id="sAC"></div></div>
+  </section>
+
+  <section class="dir">
+    <div class="dir-head"><span class="eyebrow">Direction A</span><h2>Verdict card</h2><p>One big word, one symbol, one colour. The numbers go below.</p></div>
+    <div class="panel"><div class="board" id="bA"></div><div class="side" id="sA"></div></div>
+  </section>
+
+  <section class="dir">
+    <div class="dir-head"><span class="eyebrow">Direction B</span><h2>Quality scale + eval swing</h2><p>Shows where the move falls on the 5-step scale, and how far the evaluation moved.</p></div>
+    <div class="panel"><div class="board" id="bB"></div><div class="side" id="sB"></div></div>
+  </section>
+
+  <section class="dir">
+    <div class="dir-head"><span class="eyebrow">Direction C</span><h2>Verdict on the board</h2><p>The badge sits on your piece. Your arrow and the best arrow are side by side.</p></div>
+    <div class="panel"><div class="board" id="bC"></div><div class="side" id="sC"></div></div>
+  </section>
+
+  <footer>
+    <p>Thresholds come from <code>classifyLossPawns</code>: best &lt; 0.15, good &lt; 0.5, inaccuracy &lt; 1, mistake &lt; blunder threshold (here 2.0), blunder above. The data is example data.</p>
+    <p>The directions can combine. For example: card A at the side, with the badge and arrows from C on the board.</p>
+  </footer>
+</div>
+
+<script>
+const FEN='r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R';
+const BEFORE=0.35, THRESHOLD=2.0;
+const BEST={san:'O-O',from:'e1',to:'g1'};
+const V={
+  best:{label:'Best',sym:'✓',col:'--v-best',move:{san:'O-O',from:'e1',to:'g1'},loss:0.04,
+    sub:'You found the engine move.',threat:null},
+  good:{label:'Good',sym:'+',col:'--v-good',move:{san:'Nc3',from:'b1',to:'c3'},loss:0.22,
+    sub:'Solid. A small step from the engine move.',threat:null},
+  inaccuracy:{label:'Inaccuracy',sym:'?!',col:'--v-inacc',move:{san:'a3',from:'a2',to:'a3'},loss:0.61,
+    sub:'Playable, but slow. You lose some of your edge.',threat:null},
+  mistake:{label:'Mistake',sym:'?',col:'--v-mistake',move:{san:'Nh4',from:'f3',to:'h4'},loss:1.14,
+    sub:'Black gets a clear advantage.',threat:{san:'Nxe4',from:'f6',to:'e4'}},
+  blunder:{label:'Blunder',sym:'??',col:'--v-blunder',move:{san:'Nxe5',from:'f3',to:'e5'},loss:2.62,
+    sub:'You lose a piece.',threat:{san:'Nxe5',from:'c6',to:'e5'}},
+  game:{label:'Same as the game',sym:'↺',col:'--v-blunder',move:{san:'Bxf7+',from:'c4',to:'f7'},loss:2.08,
+    sub:'You played the game move again. Find a better move.',threat:{san:'Kxf7',from:'e8',to:'f7'},game:true},
+};
+const ORDER=['best','good','inaccuracy','mistake','blunder','game'];
+const SCALE=['best','good','inaccuracy','mistake','blunder'];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const GLYPH={k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+let current='blunder';
+
+function parse(fen){const g=[];for(const row of fen.split('/')){const r=[];for(const c of row){if(/\d/.test(c))for(let i=0;i<+c;i++)r.push(null);else r.push(c)}g.push(r)}return g}
+function idx(sq){return{f:sq.charCodeAt(0)-97,r:8-+sq[1]}}
+function applyMove(g,m){const a=idx(m.from),b=idx(m.to);const out=g.map(r=>r.slice());out[b.r][b.f]=out[a.r][a.f];out[a.r][a.f]=null;
+  if(m.san==='O-O'){out[7][5]='R';out[7][7]=null}return out}
+
+/* opts: {grid, tints:{sq:color}, arrows:[{from,to,color,dash}], badge:{sq,text,color}} */
+function drawBoard(el,o){
+  el.innerHTML='';
+  for(let r=0;r<8;r++)for(let f=0;f<8;f++){
+    const sq=String.fromCharCode(97+f)+(8-r);
+    const d=document.createElement('div');d.className='sq '+((r+f)%2?'d':'l');
+    if(o.tints&&o.tints[sq]){const t=document.createElement('div');t.className='tint';t.style.background=o.tints[sq];d.appendChild(t)}
+    const p=o.grid[r][f];
+    if(p){const s=document.createElement('span');s.className='pc '+(p===p.toUpperCase()?'w':'b');s.textContent=GLYPH[p.toLowerCase()];s.style.position='relative';d.appendChild(s)}
+    if(o.badge&&o.badge.sq===sq){const b=document.createElement('span');b.className='badge flash';b.style.background=o.badge.color;b.textContent=o.badge.text;d.appendChild(b)}
+    if(f===0){const c=document.createElement('span');c.className='coord';c.style.cssText='top:2px;left:3px';c.textContent=8-r;c.style.color=(r+f)%2?'var(--sq-light)':'var(--sq-dark)';d.appendChild(c)}
+    if(r===7){const c=document.createElement('span');c.className='coord';c.style.cssText='bottom:2px;right:3px';c.textContent=String.fromCharCode(97+f);c.style.color=(r+f)%2?'var(--sq-light)':'var(--sq-dark)';d.appendChild(c)}
+    el.appendChild(d);
+  }
+  if(o.arrows&&o.arrows.length){
+    const ns='http://www.w3.org/2000/svg';const svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 8 8');
+    const defs=document.createElementNS(ns,'defs');svg.appendChild(defs);
+    o.arrows.forEach((a,i)=>{
+      const id='m'+el.id+i;const mk=document.createElementNS(ns,'marker');
+      mk.setAttribute('id',id);mk.setAttribute('viewBox','0 0 10 10');mk.setAttribute('refX','5');mk.setAttribute('refY','5');
+      mk.setAttribute('markerWidth','2.6');mk.setAttribute('markerHeight','2.6');mk.setAttribute('orient','auto');
+      const path=document.createElementNS(ns,'path');path.setAttribute('d','M0,0 L10,5 L0,10 z');path.setAttribute('fill',a.color);mk.appendChild(path);defs.appendChild(mk);
+      const A=idx(a.from),B=idx(a.to);const x1=A.f+.5,y1=A.r+.5,x2=B.f+.5,y2=B.r+.5;
+      const len=Math.hypot(x2-x1,y2-y1);const k=(len-.32)/len;
+      const ln=document.createElementNS(ns,'line');
+      ln.setAttribute('x1',x1);ln.setAttribute('y1',y1);ln.setAttribute('x2',x1+(x2-x1)*k);ln.setAttribute('y2',y1+(y2-y1)*k);
+      ln.setAttribute('stroke',a.color);ln.setAttribute('stroke-width','.16');ln.setAttribute('stroke-linecap','round');ln.setAttribute('opacity','.88');
+      if(a.dash)ln.setAttribute('stroke-dasharray','.28 .2');ln.setAttribute('marker-end','url(#'+id+')');svg.appendChild(ln);
+    });
+    el.appendChild(svg);
+  }
+}
+const fmt=n=>(n>0?'+':n<0?'−':'')+Math.abs(n).toFixed(2);
+const lossTxt=v=>'−'+v.loss.toFixed(2);
+function alpha(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`}
+
+function render(){
+  const v=V[current];const col=css(v.col);const isBest=current==='best';
+  const after=applyMove(parse(FEN),v.move);const after2=v.threat?after:after;
+  const bestTxt=isBest?'':` Best was ${BEST.san}.`;
+  const threatTxt=v.threat?` Threat: ${v.threat.san}.`:'';
+
+  /* Today */
+  const toneCol={best:'--success',good:'--success',inaccuracy:'--warning',mistake:'--error',blunder:'--error',game:'--error'}[current];
+  const oldMsg={best:`Best move (${BEST.san}). Engine loss ≈ ${v.loss.toFixed(2)} pawns.`,
+    good:`Good — small inaccuracy (≈ ${v.loss.toFixed(2)} pawns vs engine line). Best was ${BEST.san}.`,
+    inaccuracy:`Inaccuracy — about ${v.loss.toFixed(2)} pawns worse than best. Try ${BEST.san}.`,
+    mistake:`Mistake — about ${v.loss.toFixed(2)} pawns lost vs best. Best was ${BEST.san}.`,
+    blunder:`Blunder — about ${v.loss.toFixed(2)} pawns lost vs best. Best was ${BEST.san}.`,
+    game:'That is the blunder you played in the game — find a better move.'}[current];
+  drawBoard(document.getElementById('b0'),{grid:after});
+  document.getElementById('s0').innerHTML=`<div class="statusline" style="border-left-color:var(${toneCol})">${oldMsg}</div>
+    <div class="btns"><button class="btn" type="button">Show threats</button><button class="btn" type="button">Reset board</button></div>`;
+
+  /* A */
+  drawBoard(document.getElementById('bA'),{grid:after,tints:{[v.move.from]:alpha(col,.35),[v.move.to]:alpha(col,.5)}});
+  const facts=[];
+  if(!v.game)facts.push(`<span class="chip">Your move <b>${v.move.san}</b></span>`);
+  if(!isBest)facts.push(`<span class="chip">Cost <b>${lossTxt(v)}</b> pawns</span>`);
+  if(!isBest)facts.push(`<span class="chip">Best <b style="color:var(--v-best)">${BEST.san}</b></span>`);
+  if(v.threat)facts.push(`<span class="chip">Threat <b style="color:var(--v-blunder)">${v.threat.san}</b></span>`);
+  const actionsA=isBest||current==='good'
+    ?`<button class="btn primary" type="button">Next position</button><button class="btn" type="button">Try another move</button>`
+    :`<button class="btn primary" type="button">Try again</button><button class="btn" type="button">Show best move</button>${v.threat?'<button class="btn" type="button">Find the punishing reply</button>':''}`;
+  document.getElementById('sA').innerHTML=`<div class="vcard" style="--vc:${col}">
+      <div class="vtop"><span class="vsym" aria-hidden="true">${v.sym}</span>
+        <div><div class="vword">${v.label}</div><div class="vsub">${v.sub}</div></div></div>
+      <div class="vfacts">${facts.join('')}</div></div>
+    <div class="btns">${actionsA}</div>`;
+
+  /* B */
+  const afterEval=BEFORE-v.loss;
+  const pct=e=>Math.max(4,Math.min(96,50+e*12));
+  drawBoard(document.getElementById('bB'),{grid:after,tints:{[v.move.to]:alpha(col,.45)}});
+  const stepIdx=v.game?4:SCALE.indexOf(current);
+  const steps=SCALE.map((k,i)=>`<div class="step${i===stepIdx?' on':''}" style="--sc:${css(V[k].col)}"><div class="bar"></div><div class="lbl">${V[k].label}</div></div>`).join('');
+  document.getElementById('sB').innerHTML=`
+    <div class="scale-head"><span class="big" style="color:${col}">${v.sym} ${v.label}</span><span class="note">${v.move.san} · ${isBest?'no loss':lossTxt(v)+' pawns vs '+BEST.san}</span></div>
+    <div class="scale" role="img" aria-label="Move quality: ${v.label}">${steps}</div>
+    <div class="evalrow">
+      <span class="eyebrow">Evaluation, White's view</span>
+      <div class="evalbar"><div class="white" style="width:${pct(afterEval)}%"></div><div class="ghost" style="left:0;width:${pct(BEFORE)}%"></div><div class="mid"></div></div>
+      <div class="evallbl"><span>Before <b>${fmt(BEFORE)}</b></span><span>After your move <b style="color:${col}">${fmt(afterEval)}</b></span></div>
+    </div>
+    <p class="note">${v.sub}${v.threat?` Black threatens <span class="san" style="color:var(--v-blunder)">${v.threat.san}</span>.`:''}</p>
+    <div class="btns">${isBest?'<button class="btn primary" type="button">Next position</button>':'<button class="btn primary" type="button">Try again</button><button class="btn" type="button">Show best move</button>'}</div>`;
+
+  /* C */
+  const arrows=[];
+  if(!isBest)arrows.push({from:BEST.from,to:BEST.to,color:css('--v-best'),dash:true});
+  if(v.threat)arrows.push({from:v.threat.from,to:v.threat.to,color:css('--v-blunder')});
+  drawBoard(document.getElementById('bC'),{grid:after,
+    tints:{[v.move.from]:alpha(col,.3),[v.move.to]:alpha(col,.55)},
+    arrows,badge:{sq:v.move.to,text:v.sym,color:col}});
+  document.getElementById('sC').innerHTML=`
+    <div class="cline"><span class="w" style="color:${col}">${v.move.san}${v.sym==='✓'||v.sym==='+'||v.sym==='↺'?'':v.sym}</span><span>${v.label}${isBest?'':' · '+lossTxt(v)}</span></div>
+    <div class="legend">
+      <span><i style="background:${col}"></i>Your move</span>
+      ${isBest?'':'<span><i style="background:repeating-linear-gradient(90deg,var(--v-best) 0 5px,transparent 5px 8px)"></i>Best: '+BEST.san+'</span>'}
+      ${v.threat?'<span><i style="background:var(--v-blunder)"></i>Threat: '+v.threat.san+'</span>':''}
+    </div>
+    <p class="note">${v.sub}</p>
+    <div class="btns">${isBest?'<button class="btn primary" type="button">Next position</button>':'<button class="btn primary" type="button">Try again</button>'}</div>`;
+
+  /* A + C */
+  drawBoard(document.getElementById('bAC'),{grid:after,
+    tints:{[v.move.from]:alpha(col,.3),[v.move.to]:alpha(col,.55)},
+    arrows,badge:{sq:v.move.to,text:v.sym,color:col}});
+  const factsAC=[];
+  if(!isBest)factsAC.push(`<span class="chip">Cost <b>${lossTxt(v)}</b> pawns</span>`);
+  if(!isBest)factsAC.push(`<span class="chip"><i style="display:inline-block;width:16px;height:3px;vertical-align:middle;margin-right:6px;background:repeating-linear-gradient(90deg,var(--v-best) 0 4px,transparent 4px 7px)"></i>Best <b style="color:var(--v-best)">${BEST.san}</b></span>`);
+  if(v.threat)factsAC.push(`<span class="chip"><i style="display:inline-block;width:16px;height:3px;vertical-align:middle;margin-right:6px;background:var(--v-blunder)"></i>Threat <b style="color:var(--v-blunder)">${v.threat.san}</b></span>`);
+  document.getElementById('sAC').innerHTML=`<div class="vcard" style="--vc:${col}">
+      <div class="vtop"><span class="vsym" aria-hidden="true">${v.sym}</span>
+        <div><div class="vword">${v.label}</div><div class="vsub"><span class="san">${v.move.san}</span> · ${v.sub}</div></div></div>
+      ${factsAC.length?`<div class="vfacts">${factsAC.join('')}</div>`:''}</div>
+    <div class="btns">${actionsA}</div>`;
+}
+
+const sw=document.getElementById('switch');
+ORDER.forEach(k=>{const b=document.createElement('button');b.type='button';b.style.color=`var(${V[k].col})`;
+  b.innerHTML=`<span class="dot"></span><span style="color:var(--ink)">${V[k].label}</span>`;
+  b.onclick=()=>{current=k;[...sw.children].forEach(x=>x.setAttribute('aria-pressed',x===b));render()};
+  b.setAttribute('aria-pressed',k===current);sw.appendChild(b)});
+render();
+</script>
