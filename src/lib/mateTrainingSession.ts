@@ -1,7 +1,7 @@
 import type { MissedMateRow } from '../db/schema'
 import { shuffleInPlace } from './shuffle'
 
-export type MateFilter = 'all' | 1 | 2
+export type MateFilter = 'all' | 1 | 2 | 'instructive'
 
 const KEY_PREFIX = 'chess-blunder-bank-mate-session-v1'
 
@@ -30,7 +30,7 @@ function storageKey(filter: MateFilter): string {
 }
 
 function parseFilter(value: unknown): MateFilter | null {
-  if (value === 'all' || value === 1 || value === 2) return value
+  if (value === 'all' || value === 1 || value === 2 || value === 'instructive') return value
   return null
 }
 
