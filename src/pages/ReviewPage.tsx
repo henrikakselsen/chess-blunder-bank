@@ -1,12 +1,13 @@
 import { Chess } from 'chess.js'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Chessboard } from 'react-chessboard'
 import type { Arrow, PieceDropHandlerArgs } from 'react-chessboard'
 import { EvalBar } from '../components/EvalBar'
 import { QueueProgress } from '../components/QueueProgress'
 import { SideToMoveBadge } from '../components/SideToMoveBadge'
 import { StatusLine, type StatusTone } from '../components/StatusLine'
+import { VerdictCard } from '../components/VerdictCard'
 import {
   blunderArrowColor,
   blunderSquareStyle,
@@ -23,8 +24,8 @@ import {
 } from '../db/tags'
 import type { MistakeRow } from '../db/schema'
 import { analyzeReviewMove } from '../lib/engine/reviewMoveAnalysis'
-import { formatThreats } from '../lib/engine/classifyMove'
-import type { OpponentReply } from '../lib/engine/types'
+import type { OpponentReply, ReviewMoveVerdict } from '../lib/engine/types'
+import { sanToSquares, tintStyle, verdictDisplay } from '../lib/engine/verdictDisplay'
 import { useStockfish } from '../lib/engine/useStockfish'
 import { loadImportPreferences } from '../lib/importPreferences'
 import { lichessAnalysisUrl } from '../lib/lichessUrl'
@@ -176,6 +177,8 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
           blunderThresholdPawns={blunderThresholdPawns}
           evalBefore={current.evalBefore}
           evalAfter={current.evalAfter}
+          onNext={() => go(1)}
+          hasNext={idx < queue.length - 1}
         />
         <div className="panel divide-y divide-base-300">
           <div className="grid grid-cols-2 gap-4 p-4">
@@ -299,6 +302,8 @@ function ReviewSession({ mistakes }: { mistakes: MistakeRow[] }) {
 /** Arrow colours for opponent replies that punish the move: best reply strong, others lighter. */
 const BEST_REPLY_ARROW_COLOR = 'rgb(220, 38, 38)'
 const OTHER_REPLY_ARROW_COLOR = 'rgb(248, 113, 113)'
+/** Arrow colour for the engine's best move, the same green as the "Best" verdict. */
+const BEST_MOVE_ARROW_COLOR = verdictDisplay('best').color
 
 type MoveFeedback = {
   text: string
@@ -311,12 +316,16 @@ function ReviewBoard({
   blunderThresholdPawns,
   evalBefore,
   evalAfter,
+  onNext,
+  hasNext,
 }: {
   fenBefore: string
   blunderSan: string
   blunderThresholdPawns: number
   evalBefore: number
   evalAfter: number
+  onNext: () => void
+  hasNext: boolean
 }) {
   const engineState = useStockfish()
   const [boardFen, setBoardFen] = useState(fenBefore)
@@ -325,6 +334,9 @@ function ReviewBoard({
   const [replies, setReplies] = useState<OpponentReply[]>([])
   const [threatsShown, setThreatsShown] = useState(false)
   const [guessFeedback, setGuessFeedback] = useState<MoveFeedback | null>(null)
+  const [verdict, setVerdict] = useState<ReviewMoveVerdict | null>(null)
+  const [userMove, setUserMove] = useState<{ from: string; to: string } | null>(null)
+  const [bestShown, setBestShown] = useState(false)
   const analysisGenRef = useRef(0)
   const startOrientation = useMemo(() => sideToMoveFromFen(fenBefore), [fenBefore])
   const sideToMove = sideToMoveFromFen(boardFen)
@@ -346,6 +358,9 @@ function ReviewBoard({
     setReplies([])
     setThreatsShown(false)
     setGuessFeedback(null)
+    setVerdict(null)
+    setUserMove(null)
+    setBestShown(false)
     setAnalyzing(false)
     analysisGenRef.current += 1
   }, [fenBefore])
@@ -385,7 +400,7 @@ function ReviewBoard({
       if (boardFen !== fenBefore) {
         // Show this on the guess line, so that the verdict text stays.
         setGuessFeedback({
-          text: 'Reset the board to try another move from the starting position.',
+          text: 'Select “Try again” to play another move from the starting position.',
           tone: 'error',
         })
         return false
@@ -413,6 +428,9 @@ function ReviewBoard({
       setReplies([])
       setThreatsShown(false)
       setGuessFeedback(null)
+      setVerdict(null)
+      setUserMove(null)
+      setBestShown(false)
       setAnalyzing(true)
       setFeedback({ text: 'Analyzing with Stockfish…', tone: 'neutral' })
 
@@ -426,7 +444,9 @@ function ReviewBoard({
         .then((verdict) => {
           if (gen !== analysisGenRef.current) return
           setBoardFen(chess.fen())
-          setFeedback({ text: verdict.message, tone: verdict.tone })
+          setFeedback(null)
+          setVerdict(verdict)
+          setUserMove({ from: sourceSquare, to: targetSquare })
           setReplies(verdict.opponentReplies)
         })
         .catch(() => {
@@ -466,6 +486,27 @@ function ReviewBoard({
     [replies, threatsShown],
   )
   const hasThreats = replies.length > 0
+  const display = verdict ? verdictDisplay(verdict.quality) : null
+  const bestSquares = useMemo(
+    () => sanToSquares(fenBefore, verdict?.bestMoveSan ?? null),
+    [fenBefore, verdict],
+  )
+  const boardArrows = useMemo<Arrow[]>(
+    () => [
+      ...(bestShown && bestSquares
+        ? [{ startSquare: bestSquares.from, endSquare: bestSquares.to, color: BEST_MOVE_ARROW_COLOR }]
+        : []),
+      ...replyArrows,
+    ],
+    [bestShown, bestSquares, replyArrows],
+  )
+  // react-chessboard ignores squareStyles when squareRenderer is set, so the renderer applies them.
+  const squareStyles: Record<string, CSSProperties> =
+    showBlunder
+      ? { [blunderSquares.from]: blunderSquareStyle, [blunderSquares.to]: blunderSquareStyle }
+      : display && userMove
+        ? { [userMove.from]: tintStyle(display.color, 0.3), [userMove.to]: tintStyle(display.color, 0.55) }
+        : {}
 
   /** Shows or hides the threats. An old guess result no longer applies after this. */
   const toggleThreats = useCallback(() => {
@@ -511,13 +552,21 @@ function ReviewBoard({
                       color: blunderArrowColor,
                     },
                   ]
-                : replyArrows,
-              squareStyles: showBlunder
-                ? {
-                    [blunderSquares.from]: blunderSquareStyle,
-                    [blunderSquares.to]: blunderSquareStyle,
-                  }
-                : {},
+                : boardArrows,
+              squareRenderer: ({ square, children }) => (
+                <div className="relative size-full" style={squareStyles[square]}>
+                  {children}
+                  {display && userMove?.to === square ? (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute top-[3%] right-[3%] z-10 grid h-[38%] min-w-[38%] place-items-center rounded-full px-0.5 font-mono text-[clamp(9px,1.6vw,13px)] leading-none font-bold text-neutral shadow-[0_1px_3px_rgba(0,0,0,0.6)]"
+                      style={{ background: display.color }}
+                    >
+                      {display.symbol}
+                    </span>
+                  ) : null}
+                </div>
+              ),
             }}
           />
         </div>
@@ -525,26 +574,55 @@ function ReviewBoard({
       <div className="flex flex-wrap items-center justify-between gap-2 pl-6">
         <SideToMoveBadge side={sideToMove} />
         <EngineStatus state={engineState} />
-        {hasThreats ? (
-          <button
-            type="button"
-            className="btn btn-error btn-outline btn-sm"
-            aria-pressed={threatsShown}
-            onClick={toggleThreats}
-          >
-            {threatsShown ? 'Hide threats' : 'Show threats'}
-          </button>
-        ) : null}
-        <button type="button" className="btn btn-outline btn-sm" onClick={resetBoard}>
-          Reset board
-        </button>
       </div>
-      <div className="pl-6">
-        {feedback ? (
-          <StatusLine tone={feedback.tone}>
-            {feedback.text}
-            {threatsShown && hasThreats ? ` ${formatThreats(replies)}` : ''}
-          </StatusLine>
+      <div className="flex flex-col gap-2 pl-6">
+        {verdict && display ? (
+          <VerdictCard
+            verdict={verdict}
+            bestShown={bestShown}
+            threatsShown={threatsShown}
+            hasThreats={hasThreats}
+            actions={
+              display.positive ? (
+                <>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={onNext} disabled={!hasNext}>
+                    Next position
+                  </button>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={resetBoard}>
+                    Try another move
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={resetBoard}>
+                    Try again
+                  </button>
+                  {verdict.bestMoveSan ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      aria-pressed={bestShown}
+                      onClick={() => setBestShown((shown) => !shown)}
+                    >
+                      {bestShown ? 'Hide best move' : 'Show best move'}
+                    </button>
+                  ) : null}
+                  {hasThreats ? (
+                    <button
+                      type="button"
+                      className="btn btn-error btn-outline btn-sm"
+                      aria-pressed={threatsShown}
+                      onClick={toggleThreats}
+                    >
+                      {threatsShown ? 'Hide threats' : 'Show threats'}
+                    </button>
+                  ) : null}
+                </>
+              )
+            }
+          />
+        ) : feedback ? (
+          <StatusLine tone={feedback.tone}>{feedback.text}</StatusLine>
         ) : engineState === 'ready' ? (
           <StatusLine tone="neutral">
             Play your move — Stockfish will rate it against the engine line.
